@@ -1,7 +1,7 @@
 import { authenticateBearer, unauthorized } from "@/lib/api-auth";
 import { listEntities } from "@/lib/api-write";
 
-// Schema-Discovery: welche Entitäten schreibbar sind + ihre Felder.
+// Schema discovery: which entities are writable and their field definitions.
 export async function GET(req: Request) {
   const p = await authenticateBearer(req);
   if (!p) return unauthorized();

@@ -66,11 +66,11 @@ export default async function WegPage({
     prisma.costEntry.findMany({ where: { tenantId, propertyId, year } }),
   ]);
 
-  // MEA-Gewicht je Eigentümer-Zeile = unit.mea * share/1000
+  // Co-ownership share weight per owner row = unit.mea * share / 1000
   const weightOf = (o: (typeof owners)[number]) => ((o.unit.mea ?? 0) * o.share) / 1000;
   const totalMea = owners.reduce((a, o) => a + weightOf(o), 0);
 
-  // Validierung: Summe der Einheiten-MEA gegen Soll des Objekts
+  // Validation: total unit shares versus target for the property
   const meaTotalSoll = wegProps.find((p) => p.id === propertyId)?.meaTotal ?? 1000;
   const meaCheck = checkMeaTotal(units.map((u) => u.mea), meaTotalSoll);
   const parts: AllocationParticipant[] = owners.map((o) => ({ id: o.id, mea: weightOf(o) }));
@@ -129,7 +129,7 @@ export default async function WegPage({
         <Button type="submit" size="sm" variant="outline">{t("common.search")}</Button>
       </form>
 
-      {/* MEA-Prüfung */}
+      {/* Co-ownership Share Check */}
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <CardTitle className="text-sm font-medium text-muted-foreground">
@@ -146,7 +146,7 @@ export default async function WegPage({
         )}
       </Card>
 
-      {/* Eigentümer & MEA */}
+      {/* Unit Owners & Shares */}
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0">
           <CardTitle className="text-base">
@@ -257,7 +257,7 @@ export default async function WegPage({
       </Card>
 
       <div className="grid gap-6 lg:grid-cols-2">
-        {/* Rücklagen */}
+        {/* Reserve Funds */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0">
             <CardTitle className="text-base">{t("weg.reserves")}</CardTitle>
@@ -303,7 +303,7 @@ export default async function WegPage({
           </CardContent>
         </Card>
 
-        {/* Vermögensbericht */}
+        {/* Statement of Assets */}
         <Card>
           <CardHeader>
             <CardTitle className="text-base">{t("weg.assets")}</CardTitle>

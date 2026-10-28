@@ -8,7 +8,7 @@ import { taskSchema, type ActionState } from "@/lib/schemas";
 export async function createTask(_p: ActionState, fd: FormData): Promise<ActionState> {
   const user = await requireWriter();
   const r = taskSchema.safeParse(Object.fromEntries(fd));
-  if (!r.success) return { error: r.error.issues[0]?.message ?? "Ungültige Eingabe" };
+  if (!r.success) return { error: r.error.issues[0]?.message ?? "Invalid input" };
   await prisma.task.create({ data: { ...r.data, tenantId: user.tenantId } });
   revalidatePath("/", "layout");
   return { ok: true };

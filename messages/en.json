@@ -1,7 +1,7 @@
 {
   "app": {
-    "name": "HaVeWa",
-    "tagline": "Property Management"
+    "name": "Localea",
+    "tagline": "Rental Management"
   },
   "common": {
     "search": "Search",
@@ -170,7 +170,7 @@
     "brandColor": "Theme colour",
     "preview": "Preview",
     "submit": "Complete setup",
-    "welcomeTitle": "Welcome to HaVeWa",
+    "welcomeTitle": "Welcome to Localea",
     "welcomeText": "Your property management will be ready in a few steps. You can skip steps and add them later in settings.",
     "brandingText": "Pick a theme colour for your app — changeable any time.",
     "propertyText": "Optional: create your first property right away.",
@@ -224,7 +224,7 @@
     "or": "or",
     "ssoSubmit": "Sign in with {provider}",
     "error": "Invalid email or password",
-    "demoHint": "Demo: admin@havewa.app / admin",
+    "demoHint": "Demo: admin@localea.app / admin",
     "tagline": "Rental and condominium management in one system.",
     "point1": "Service-charge statements per BetrKV & HeizkostenV",
     "point2": "HOA annual statements, meetings & reserves",
@@ -265,7 +265,12 @@
     "empty": "No properties yet. Create the first one.",
     "buildings": "Buildings",
     "units": "Units",
-    "detailTitle": "Property details"
+    "detailTitle": "Property details",
+    "utilityAndCosts": "Utility bills & property expenses",
+    "utilitySubtitle": "Apportionable costs (water, heating, waste, insurance) allocated across units",
+    "recentTickets": "Maintenance & tickets",
+    "noRecentTickets": "No maintenance tickets logged for this property.",
+    "addCost": "Add property utility / cost"
   },
   "buildings": {
     "new": "New building",
@@ -307,7 +312,26 @@
     "tenancies": "Tenancies",
     "noTenancies": "No tenancies.",
     "ownerships": "Ownership",
-    "noOwnerships": "No ownership on record."
+    "noOwnerships": "No ownership on record.",
+    "financialLedger": "Credit & Debit Ledger",
+    "ledgerSubtitle": "Billed charges, received payments, running balances and credits",
+    "totalDebits": "Total debits (billed)",
+    "totalCredits": "Total credits (paid)",
+    "netBalance": "Account balance",
+    "inCredit": "In credit / overpaid",
+    "balanceDue": "Balance due",
+    "settled": "Settled",
+    "recordPayment": "Record payment",
+    "financialStatus": "Balance status",
+    "portfolioCredit": "Total tenant credits (overpaid)",
+    "portfolioDue": "Total tenant arrears (due)",
+    "ledgerDate": "Date",
+    "ledgerType": "Type",
+    "ledgerDebit": "Debit (Billed)",
+    "ledgerCredit": "Credit (Paid)",
+    "ledgerRunning": "Running balance",
+    "ledgerReference": "Reference / Lease",
+    "noLedgerEntries": "No financial transactions recorded for this person."
   },
   "personType": {
     "MIETER": "Tenant",
@@ -330,12 +354,12 @@
   "fee": {
     "title": "Management fee",
     "type": "Fee model",
-    "value": "Value (€ or %)",
+    "value": "Value (KES or %)",
     "perMonth": "month"
   },
   "feeType": {
-    "PAUSCHAL": "Flat (€/month)",
-    "PRO_EINHEIT": "Per unit (€/month)",
+    "PAUSCHAL": "Flat (KES/month)",
+    "PRO_EINHEIT": "Per unit (KES/month)",
     "PROZENT": "Percent of rent"
   },
   "unitType": {
@@ -531,7 +555,7 @@
     "person": "Tenant (person)",
     "vacancy": "Vacancy",
     "area": "Area (m²)",
-    "pricePerSqm": "Rent €/m²",
+    "pricePerSqm": "Rent KES/m²",
     "from": "From",
     "to": "To",
     "outdoor": "Outdoor area",
@@ -576,6 +600,7 @@
     "generate": "Generate charges",
     "month": "Month",
     "totalOpen": "Total open items",
+    "totalOverpaid": "Total tenant credits (overpaid)",
     "openItems": "Open items",
     "noOpenItems": "No open items.",
     "accounts": "Accounts",
@@ -601,6 +626,7 @@
     "statusPARTIAL": "Partial",
     "statusPAID": "Paid",
     "statusOVERDUE": "Overdue",
+    "statusOVERPAID": "Overpaid (Credit)",
     "importExport": "Import / Export",
     "importCamt": "Import camt.053",
     "datevExport": "DATEV export",

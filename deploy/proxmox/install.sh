@@ -86,11 +86,25 @@ cp -a "$TMP/src/." "$BUILD_DIR/"
 # replaces the code without taking the documents with it.
 ln -sfn "$DATA_DIR/storage" "$BUILD_DIR/storage"
 
+note "ensuring pnpm package manager is active"
+if ! command -v pnpm >/dev/null 2>&1; then
+  corepack enable >/dev/null 2>&1 || npm install -g pnpm >/dev/null 2>&1 || true
+fi
+PKG_MGR="npm"
+command -v pnpm >/dev/null 2>&1 && PKG_MGR="pnpm"
+note "installing dependencies with ${PKG_MGR}"
+
 (
   cd "$BUILD_DIR"
-  npm ci --no-audit --no-fund >/dev/null
-  npx prisma generate >/dev/null
-  NODE_ENV=production npm run build >/dev/null
+  if [ "$PKG_MGR" = "pnpm" ]; then
+    pnpm install >/dev/null 2>&1 || npm install --legacy-peer-deps >/dev/null 2>&1
+    npx prisma generate >/dev/null
+    NODE_ENV=production pnpm run build >/dev/null
+  else
+    npm ci --no-audit --no-fund >/dev/null 2>&1 || npm install --legacy-peer-deps >/dev/null 2>&1
+    npx prisma generate >/dev/null
+    NODE_ENV=production npm run build >/dev/null
+  fi
 )
 
 id -u havewa >/dev/null 2>&1 || useradd --system --home "$DATA_DIR" --shell /usr/sbin/nologin havewa

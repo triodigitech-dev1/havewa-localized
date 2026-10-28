@@ -1,225 +1,227 @@
-import { authenticateBearer, type ApiPrincipal } from "@/lib/api-auth";
+import { authenticateBearer, Principal } from "@/lib/api-auth";
 import * as data from "@/lib/api-data";
-import { apiCreate, apiUpdate, apiDelete, listEntities, ENTITIES } from "@/lib/api-write";
-import { runOperation, listOperations, OPERATION_NAMES } from "@/lib/api-ops";
+import { listEntities, apiCreate, apiUpdate, apiDelete } from "@/lib/api-write";
+import { listOperations, runOperation, OPERATION_NAMES } from "@/lib/api-ops";
 
-// MCP-Server (Model Context Protocol) über Streamable HTTP / JSON-RPC.
-// Auth: Bearer-Token (persönlicher API-Token). Der Agent (Claude, ChatGPT,
-// beliebiger MCP-Client) kann damit den Bestand lesen, verstehen und bearbeiten.
-// Stateless: jede POST-Anfrage ist eigenständig, Antwort als application/json.
+// MCP Server (Model Context Protocol) via Streamable HTTP / JSON-RPC.
+// Auth: Bearer Token (personal API token). The agent (Claude, ChatGPT,
+// Cursor, etc.) specifies "Authorization: Bearer <token>".
+// Stateless: each POST request is self-contained, returned as application/json.
 
 const PROTOCOL = "2024-11-05";
 
-type Tool = {
+type ToolDef = {
   name: string;
   description: string;
-  inputSchema: object;
-  run: (p: ApiPrincipal, args: Record<string, unknown>) => Promise<unknown>;
+  inputSchema: Record<string, unknown>;
+  run: (p: Principal, args: Record<string, unknown>) => Promise<unknown>;
 };
 
-const obj = (props: Record<string, object>, required: string[] = []) => ({
-  type: "object",
-  properties: props,
-  required,
-});
 const str = { type: "string" };
 const rec = { type: "object", additionalProperties: true };
-const entityEnum = { type: "string", enum: ENTITIES };
+const entityEnum = {
+  type: "string",
+  enum: [
+    "property", "building", "unit", "person", "lease", "rentComponent",
+    "deposit", "charge", "payment", "meter", "meterReading", "meeting",
+    "agendaItem", "resolution", "economicPlan", "reserve", "reserveTransaction",
+    "appointment", "task", "contractor", "maintenanceContract", "insurance",
+    "propertyTax", "template", "customFieldDef", "user",
+  ],
+};
 
-const TOOLS: Tool[] = [
-  {
-    name: "portfolio_summary",
-    description: "Kennzahlen-Überblick: Objekte, Einheiten, Vermietung, Sollmiete/Monat, offene Posten, offene Tickets.",
-    inputSchema: obj({}),
-    run: (p) => data.portfolioSummary(p.tenantId),
-  },
+function obj(properties: Record<string, unknown>, required: string[] = []) {
+  return { type: "object", properties, required };
+}
+
+const TOOLS: ToolDef[] = [
   {
     name: "list_properties",
-    description: "Alle Objekte (Liegenschaften) mit Adresse, Verwaltungsart und Einheitenzahl.",
+    description: "List all properties belonging to the current organization/tenant.",
     inputSchema: obj({}),
     run: (p) => data.listProperties(p.tenantId),
   },
   {
     name: "get_property",
-    description: "Ein Objekt mit Gebäuden und Einheiten (Details).",
+    description: "Retrieve a property with its buildings and units (detailed overview).",
     inputSchema: obj({ id: str }, ["id"]),
     run: (p, a) => data.getProperty(p.tenantId, String(a.id)),
   },
   {
     name: "list_units",
-    description: "Alle Einheiten (Wohnungen/Gewerbe/Stellplätze) mit Objekt, Fläche und Zimmern.",
+    description: "List all units (apartments, commercial spaces, parking, storage) with property, area, and rooms.",
     inputSchema: obj({}),
     run: (p) => data.listUnits(p.tenantId),
   },
   {
     name: "list_persons",
-    description: "Alle Personen/Kontakte (Mieter, Eigentümer, Interessenten, Handwerker …).",
+    description: "List all people/contacts (tenants, owners, prospects, contractors, brokers, banks).",
     inputSchema: obj({}),
     run: (p) => data.listPersons(p.tenantId),
   },
   {
     name: "list_leases",
-    description: "Alle Mietverträge mit Objekt, Einheit, Mieter, Kaltmiete und Laufzeit.",
+    description: "List all rental leases with property, unit, tenant, base rent, and terms.",
     inputSchema: obj({}),
     run: (p) => data.listLeases(p.tenantId),
   },
   {
     name: "list_tickets",
-    description: "Alle Instandhaltungs-/Schadens-Tickets mit Status, Priorität und Zuständigkeit.",
+    description: "List all maintenance and repair tickets with status, priority, and assigned parties.",
     inputSchema: obj({}),
     run: (p) => data.listTickets(p.tenantId),
   },
   {
     name: "list_open_items",
-    description: "Offene Posten (unbezahlte Sollstellungen) mit Betrag, Fälligkeit und Überfälligkeit.",
+    description: "List outstanding overdue charges with balance, due date, and dunning status.",
     inputSchema: obj({}),
     run: (p) => data.listOpenItems(p.tenantId),
   },
   {
     name: "list_owners",
-    description: "Alle Eigentümer-Zuordnungen (Person je Einheit mit Anteil in Tausendstel).",
+    description: "List all unit ownership shares and owner assignments.",
     inputSchema: obj({}),
     run: (p) => data.listOwners(p.tenantId),
   },
   {
     name: "list_meters",
-    description: "Alle Zähler (Strom/Wasser/Wärme …) mit Einheit, Objekt und letztem Zählerstand.",
+    description: "List all meters (electricity, water, gas, heating) with unit, property, and latest reading.",
     inputSchema: obj({}),
     run: (p) => data.listMeters(p.tenantId),
   },
   {
     name: "list_accounts",
-    description: "Alle Konten (Bank/Kaution/Rücklage) mit Saldo.",
+    description: "List all financial accounts (operating bank, deposit escrow, reserve fund) with balances.",
     inputSchema: obj({}),
     run: (p) => data.listAccounts(p.tenantId),
   },
   {
     name: "list_charges",
-    description: "Alle Sollstellungen (Forderungen) mit Betrag, Fälligkeit und bereits gezahltem Betrag.",
+    description: "List all rent charges and receivables with due dates and payment status.",
     inputSchema: obj({}),
     run: (p) => data.listCharges(p.tenantId),
   },
   {
     name: "list_payments",
-    description: "Alle Zahlungen (Ein-/Ausgänge) mit Betrag, Datum, Konto und Verwendungszweck.",
+    description: "List all incoming and outgoing payments with amounts, dates, and references.",
     inputSchema: obj({}),
     run: (p) => data.listPayments(p.tenantId),
   },
   {
     name: "list_documents",
-    description: "Alle Dokumente (Verträge, Rechnungen, Protokolle, Abrechnungen) mit Kategorie und E-Rechnungs-Daten.",
+    description: "List all documents (leases, invoices, protocols, statements) with categories.",
     inputSchema: obj({}),
     run: (p) => data.listDocuments(p.tenantId),
   },
   {
     name: "list_meetings",
-    description: "Alle Eigentümerversammlungen mit Datum, Status, Ort, Anzahl TOPs und Beschlüsse.",
+    description: "List all owner meetings with date, status, location, agenda items, and resolutions.",
     inputSchema: obj({}),
     run: (p) => data.listMeetings(p.tenantId),
   },
   {
     name: "list_resolutions",
-    description: "Beschlusssammlung (§24 WEG): alle Beschlüsse je Objekt mit Nummer, Text, Ergebnis und Abstimmung.",
+    description: "List book of resolutions: all HOA resolutions per property with resolution number and votes.",
     inputSchema: obj({}),
     run: (p) => data.listResolutions(p.tenantId),
   },
   {
     name: "list_economic_plans",
-    description: "WEG-Wirtschaftspläne (§28) je Objekt/Jahr mit Gesamtbetrag und monatlichem Hausgeld.",
+    description: "List annual HOA economic plans per property/year with total and monthly assessments.",
     inputSchema: obj({}),
     run: (p) => data.listEconomicPlans(p.tenantId),
   },
   {
     name: "list_reserves",
-    description: "Erhaltungsrücklagen je Objekt mit aktuellem Saldo.",
+    description: "List reserve funds per property with current balance and transactions.",
     inputSchema: obj({}),
     run: (p) => data.listReserves(p.tenantId),
   },
   {
     name: "list_appointments",
-    description: "Alle Termine (Besichtigung/Versammlung/Wartung/Frist) mit Start, Ende und Ort.",
+    description: "List all calendar appointments (viewings, meetings, maintenance, deadlines) with dates and locations.",
     inputSchema: obj({}),
     run: (p) => data.listAppointments(p.tenantId),
   },
   {
     name: "list_tasks",
-    description: "Alle Aufgaben/Wiedervorlagen mit Fälligkeit und Status.",
+    description: "List all tasks and reminders with due dates and completion status.",
     inputSchema: obj({}),
     run: (p) => data.listTasks(p.tenantId),
   },
   {
     name: "list_contractors",
-    description: "Alle Handwerker/Dienstleister mit Gewerk und Kontakt.",
+    description: "List all contractors and service providers with trade and contact details.",
     inputSchema: obj({}),
     run: (p) => data.listContractors(p.tenantId),
   },
   {
     name: "list_maintenance_contracts",
-    description: "Alle Wartungsverträge mit Intervall, nächster Fälligkeit und Dienstleister.",
+    description: "List all recurring maintenance contracts with service interval, next due date, and vendor.",
     inputSchema: obj({}),
     run: (p) => data.listMaintenanceContracts(p.tenantId),
   },
   {
     name: "list_insurances",
-    description: "Alle Versicherungen je Objekt mit Typ, Versicherer, Police und Jahresprämie.",
+    description: "List all insurance policies per property with policy type, carrier, and annual premium.",
     inputSchema: obj({}),
     run: (p) => data.listInsurances(p.tenantId),
   },
   {
     name: "list_property_taxes",
-    description: "Grundsteuer je Objekt (Aktenzeichen, Messbetrag, Hebesatz, berechneter Jahresbetrag).",
+    description: "List property tax assessments per property.",
     inputSchema: obj({}),
     run: (p) => data.listPropertyTaxes(p.tenantId),
   },
   {
     name: "create_task",
-    description: "Neue Aufgabe/Wiedervorlage anlegen. dueDate optional als YYYY-MM-DD.",
+    description: "Create a new task / reminder. dueDate optional formatted as YYYY-MM-DD.",
     inputSchema: obj({ title: str, dueDate: str }, ["title"]),
     run: (p, a) => data.createTask(p.tenantId, { title: String(a.title), dueDate: a.dueDate ? String(a.dueDate) : undefined }),
   },
   {
     name: "list_entities",
     description:
-      "Schema-Discovery: alle schreibbaren Entitäten mit ihren Feldern und Relationen. IMMER zuerst aufrufen, bevor create_record/update_record genutzt wird, um die korrekten Feldnamen zu kennen.",
+      "Schema discovery: all writable entities with their fields and relations. Call first to inspect exact field schemas.",
     inputSchema: obj({}),
     run: async () => listEntities(),
   },
   {
     name: "create_record",
     description:
-      "Beliebigen Datensatz anlegen (Objekt, Einheit, Person, Vertrag, Buchung, Versammlung, Beschluss, WEG-Plan, Versicherung, Benutzer …). entity = Typ aus list_entities, data = Felder. Relation-IDs (z. B. propertyId) müssen zum Mandanten gehören.",
+      "Create any entity record (property, unit, person, lease, charge, payment, meeting, resolution, insurance, etc.).",
     inputSchema: obj({ entity: entityEnum, data: rec }, ["entity", "data"]),
     run: (p, a) => apiCreate(p, String(a.entity), (a.data as Record<string, unknown>) ?? {}),
   },
   {
     name: "update_record",
-    description: "Datensatz ändern. entity + id + data (nur zu ändernde Felder). Nur bei aktualisierbaren Entitäten (siehe list_entities.writable).",
+    description: "Update an existing entity record. entity + id + data fields to modify.",
     inputSchema: obj({ entity: entityEnum, id: str, data: rec }, ["entity", "id", "data"]),
     run: (p, a) => apiUpdate(p, String(a.entity), String(a.id), (a.data as Record<string, unknown>) ?? {}),
   },
   {
     name: "delete_record",
-    description: "Datensatz löschen. entity + id. Mandanten-gescopt.",
+    description: "Delete an entity record by ID. Scoped strictly to the tenant.",
     inputSchema: obj({ entity: entityEnum, id: str }, ["entity", "id"]),
     run: (p, a) => apiDelete(p, String(a.entity), String(a.id)),
   },
   {
     name: "list_operations",
     description:
-      "Verfügbare Operationen (kein reines CRUD): Sollstellungslauf, Mahnlauf, Mietanpassung anwenden, Wartung fortschreiben, Zeiterfassung, Bank-Import, E-Mail senden, Dokument-Upload, Konfiguration. Zuerst aufrufen, um Namen + Parameter zu kennen.",
+      "Available workflow operations: charge generation run, dunning run, apply rent adjustment, advance maintenance, etc.",
     inputSchema: obj({}),
     run: async () => listOperations(),
   },
   {
     name: "run_operation",
     description:
-      "Operation ausführen. operation = Name aus list_operations, args = Parameter. Beispiele: run_charge_generation{month:'2026-02'}, run_dunning{}, apply_adjustment{id}, send_email{toAddress,subject,body}, import_camt{xml}.",
+      "Execute a named workflow operation. operation = name from list_operations, args = parameters object.",
     inputSchema: obj({ operation: { type: "string", enum: OPERATION_NAMES }, args: rec }, ["operation"]),
     run: (p, a) => runOperation(p, String(a.operation), (a.args as Record<string, unknown>) ?? {}),
   },
   {
     name: "create_ticket",
-    description: "Neues Ticket/Schadensmeldung anlegen. propertyId optional.",
+    description: "Create a new maintenance / repair ticket.",
     inputSchema: obj(
       { title: str, description: str, propertyId: str, priority: { type: "string", enum: ["NIEDRIG", "MITTEL", "HOCH"] } },
       ["title"],
@@ -234,7 +236,7 @@ const TOOLS: Tool[] = [
   },
   {
     name: "create_person",
-    description: "Neue Person/Kontakt anlegen (z. B. Interessent).",
+    description: "Create a new contact / person record.",
     inputSchema: obj(
       { firstName: str, lastName: str, email: str, phone: str, type: str },
       ["firstName", "lastName"],
@@ -267,7 +269,7 @@ export async function POST(req: Request) {
   if (!body || body.jsonrpc !== "2.0") return rpcError(null, -32600, "Invalid Request");
   const { id, method, params } = body;
 
-  // Notifications (keine Antwort erwartet)
+  // Notifications (no response expected)
   if (typeof method === "string" && method.startsWith("notifications/")) {
     return new Response(null, { status: 202 });
   }
@@ -277,7 +279,7 @@ export async function POST(req: Request) {
       return rpc(id, {
         protocolVersion: params?.protocolVersion ?? PROTOCOL,
         capabilities: { tools: {} },
-        serverInfo: { name: "HaVeWa", version: "1.0.0" },
+        serverInfo: { name: "Localea", version: "1.0.0" },
       });
     case "ping":
       return rpc(id, {});
@@ -287,23 +289,23 @@ export async function POST(req: Request) {
       });
     case "tools/call": {
       const tool = TOOLS.find((t) => t.name === params?.name);
-      if (!tool) return rpcError(id, -32602, `Unbekanntes Tool: ${params?.name}`);
+      if (!tool) return rpcError(id, -32602, `Unknown tool: ${params?.name}`);
       try {
         const result = await tool.run(principal, params?.arguments ?? {});
         return rpc(id, { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] });
       } catch (e) {
         return rpc(id, {
-          content: [{ type: "text", text: `Fehler: ${e instanceof Error ? e.message : "unbekannt"}` }],
+          content: [{ type: "text", text: `Error: ${e instanceof Error ? e.message : "unknown error"}` }],
           isError: true,
         });
       }
     }
     default:
-      return rpcError(id, -32601, `Methode nicht unterstützt: ${method}`);
+      return rpcError(id, -32601, `Method not supported: ${method}`);
   }
 }
 
-// Manche Clients prüfen GET (SSE-Stream). Stateless → nicht unterstützt.
+// Clients checking GET (SSE stream)
 export function GET() {
-  return new Response("MCP: bitte POST (JSON-RPC) verwenden.", { status: 405 });
+  return new Response("MCP: please use POST with JSON-RPC.", { status: 405 });
 }

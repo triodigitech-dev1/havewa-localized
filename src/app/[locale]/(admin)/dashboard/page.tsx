@@ -38,9 +38,9 @@ import { Button } from "@/components/ui/button";
 import { CrudDialog } from "@/components/crud-dialog";
 import { TextField } from "@/components/form-fields";
 import { createTask, toggleTask, deleteTask } from "@/server/actions/tasks";
-import { AiAssistant } from "@/components/ai-assistant";
 import { MonthlyBars, OccupancyDonut } from "@/components/dashboard-charts";
 import { ReminderButton } from "@/components/reminder-button";
+import { DemoModeBanner } from "@/components/demo-mode-banner";
 
 export default async function DashboardPage() {
   const user = await requireUser();
@@ -53,7 +53,8 @@ export default async function DashboardPage() {
   const in90 = new Date(now.getTime() + 90 * 864e5);
   const in30 = new Date(now.getTime() + 30 * 864e5);
 
-  const [properties, units, leases, charges, openTickets, maintenance, tasks, paymentsRecent, expiringLeases, upcomingMaint] = await Promise.all([
+  const [tenant, properties, units, leases, charges, openTickets, maintenance, tasks, paymentsRecent, expiringLeases, upcomingMaint] = await Promise.all([
+    prisma.tenant.findUnique({ where: { id: tenantId }, select: { isDemo: true, name: true, subdomain: true } }),
     prisma.property.findMany({
       where: { tenantId },
       include: { buildings: { include: { _count: { select: { units: true } } } } },
@@ -76,8 +77,9 @@ export default async function DashboardPage() {
     prisma.maintenanceContract.count({ where: { tenantId, nextDue: { gte: now, lte: in30 } } }),
   ]);
 
-  const isOccupied = (ls: { startDate: Date; endDate: Date | null }[]) =>
-    ls.some((l) => l.startDate <= now && (!l.endDate || l.endDate >= now));
+  const isOccupied = (ls?: { startDate: Date; endDate: Date | null }[]) =>
+    Array.isArray(ls) &&
+    ls.some((l) => new Date(l.startDate) <= now && (!l.endDate || new Date(l.endDate) >= now));
   const totalUnits = units.length;
   const occupied = units.filter((u) => isOccupied(u.leases)).length;
   const vacant = totalUnits - occupied;
@@ -141,6 +143,8 @@ export default async function DashboardPage() {
         <h1 className="text-2xl font-semibold tracking-tight">{t("dashboard.title")}</h1>
         <p className="text-sm text-muted-foreground">{t("dashboard.subtitle")}</p>
       </div>
+
+      <DemoModeBanner isDemo={!!tenant?.isDemo} />
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {stats.map((s) => (
@@ -270,12 +274,10 @@ export default async function DashboardPage() {
         </Card>
       </div>
 
-      <AiAssistant />
-
       <Card>
         <CardHeader>
           <CardTitle>{t("dashboard.recentProperties")}</CardTitle>
-          <CardDescription>{properties.length} · HaVeWa</CardDescription>
+          <CardDescription>{properties.length} · Localea</CardDescription>
         </CardHeader>
         <CardContent>
           {properties.length === 0 ? (

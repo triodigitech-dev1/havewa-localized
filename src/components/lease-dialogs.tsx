@@ -76,7 +76,7 @@ export async function LeaseDialog({
     >
       {edit && <input type="hidden" name="id" value={lease!.id} />}
 
-      {/* Einheit: im Create + Edit wählbar; per Preset gesperrt */}
+      {/* Unit: selectable in create and edit; locked when preset is provided */}
       {presetUnitId ? (
         <input type="hidden" name="unitId" value={presetUnitId} />
       ) : (
@@ -88,7 +88,7 @@ export async function LeaseDialog({
         />
       )}
 
-      {/* Mieter-Person nur im Create (im Edit über Mieter-Verwaltung) */}
+      {/* Tenant person selection only on create (managed separately on edit) */}
       {!edit &&
         (presetPersonId ? (
           <input type="hidden" name="personId" value={presetPersonId} />

@@ -42,8 +42,8 @@ export const buildingSchema = z.object({
   name: z.string().trim().min(1),
 });
 
-// Beim Bearbeiten wird nur der Name geändert; propertyId sendet das Formular
-// nicht mit (sonst „expected string, received undefined").
+// When editing, only the name is changed; propertyId is omitted from the form
+// to prevent validation errors.
 export const buildingUpdateSchema = buildingSchema.omit({ propertyId: true });
 
 export const unitSchema = z.object({
@@ -63,9 +63,8 @@ export const unitSchema = z.object({
     .transform((v) => (v ? parseInt(v, 10) : undefined)),
 });
 
-// Beim Bearbeiten ändert sich die Gebäude-Zuordnung nicht → buildingId nicht
-// verlangen (sonst schlägt die Validierung fehl, weil das Edit-Formular es nicht
-// mitsendet).
+// When editing, the building assignment does not change -> omit buildingId
+// to prevent validation errors since the edit form does not include it.
 export const unitUpdateSchema = unitSchema.omit({ buildingId: true });
 
 export const personSchema = z.object({
@@ -261,9 +260,19 @@ export const agendaSchema = z.object({
 
 export const setupSchema = z.object({
   tenantName: z.string().trim().min(1),
+  subdomain: z
+    .string()
+    .trim()
+    .optional()
+    .transform((s) => (s ? s.toLowerCase().replace(/[^a-z0-9-]/g, "") : undefined)),
+  customDomain: optionalStr,
+  isDemo: z
+    .enum(["true", "false"])
+    .optional()
+    .transform((v) => v === "true"),
   name: z.string().trim().min(1),
   email: z.string().trim().email(),
-  password: z.string().min(6),
+  password: z.string().min(4),
   locale: z.enum(["de", "en"]),
   brandColor: optionalStr,
   // optionales erstes Objekt
@@ -310,7 +319,7 @@ export const customFieldDefSchema = z.object({
     .string()
     .trim()
     .min(1)
-    .regex(/^[a-z0-9_]+$/, "Nur Kleinbuchstaben, Ziffern, Unterstrich"),
+    .regex(/^[a-z0-9_]+$/, "Only lowercase letters, numbers, and underscores allowed"),
   label: z.string().trim().min(1),
 });
 
@@ -329,11 +338,11 @@ export const appointmentSchema = z.object({
   note: optionalStr,
 });
 
-// Eine oder mehrere Adressen, komma-/semikolongetrennt.
+// One or multiple addresses, comma- or semicolon-separated.
 const emailList = z
   .string()
   .trim()
-  .refine((v) => v.split(/[,;]/).every((e) => /.+@.+\..+/.test(e.trim())), "Ungültige E-Mail-Adresse");
+  .refine((v) => v.split(/[,;]/).every((e) => /.+@.+\..+/.test(e.trim())), "Invalid email address");
 
 export const emailSchema = z.object({
   toAddress: emailList,

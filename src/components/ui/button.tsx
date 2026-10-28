@@ -52,8 +52,8 @@ function Button({
     <ButtonPrimitive
       data-slot="button"
       render={render}
-      // Wird ein eigenes Element gerendert (z. B. <a>/<Link>), ist es kein
-      // natives <button> — sonst warnt Base UI. Aufrufer kann überschreiben.
+      // When a custom element is rendered (e.g. <a>/<Link>), nativeButton is false
+      // to avoid Base UI warnings. Caller can override if needed.
       nativeButton={nativeButton ?? render === undefined}
       className={cn(buttonVariants({ variant, size, className }))}
       {...props}

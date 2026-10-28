@@ -11,7 +11,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   const tenantId = session.user.tenantId;
   const role = session.user.role;
 
-  // Portal-Rollen dürfen nur Dokumente ihrer eigenen Objekte laden.
+  // Portal roles may only access documents for their own associated properties/units
   let where: import("@prisma/client").Prisma.DocumentWhereInput = { id, tenantId };
   if (role === "MIETER" || role === "EIGENTUEMER" || role === "HANDWERKER") {
     const u = await prisma.user.findUnique({ where: { id: session.user.id }, select: { personId: true } });
@@ -37,7 +37,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   if (!doc) return new Response("Not found", { status: 404 });
 
   const buf = await readFile(doc.storageKey);
-  // ?inline=1 → im Browser anzeigen statt herunterladen (Vorschau)
+  // ?inline=1 -> display in browser for preview rather than downloading
   const inline = new URL(req.url).searchParams.get("inline") === "1";
   return new Response(new Uint8Array(buf), {
     headers: {

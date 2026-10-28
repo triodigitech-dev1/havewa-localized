@@ -16,7 +16,7 @@ export default async function LeasingPage() {
   const soon = new Date(now.getTime() + SOON_DAYS * 86_400_000);
 
   const [units, endingLeases, interessenten, areaProps] = await Promise.all([
-    // Einheiten mit aktiven Verträgen (für Leerstand-Ermittlung)
+    // Units with active leases (for vacancy tracking)
     prisma.unit.findMany({
       where: { tenantId: user.tenantId, building: { property: { areaModel: false } } },
       include: {
@@ -25,7 +25,7 @@ export default async function LeasingPage() {
       },
       orderBy: { createdAt: "asc" },
     }),
-    // Verträge, die in den nächsten 90 Tagen enden → künftiger Leerstand
+    // Leases expiring within 90 days -> impending vacancy
     prisma.lease.findMany({
       where: { tenantId: user.tenantId, endDate: { gte: now, lte: soon } },
       include: {
@@ -38,7 +38,7 @@ export default async function LeasingPage() {
       where: { tenantId: user.tenantId, type: "INTERESSENT" },
       orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
     }),
-    // Flächenmodell-Objekte: Leerstandsfläche jetzt
+    // Area model properties: current vacant area
     prisma.property.findMany({
       where: { tenantId: user.tenantId, areaModel: true },
       include: { areaAllocations: true },
@@ -46,7 +46,7 @@ export default async function LeasingPage() {
   ]);
 
   const vacantUnits = units.filter(
-    (u) => !u.leases.some((l) => l.startDate <= now && (!l.endDate || l.endDate >= now)),
+    (u) => !Array.isArray(u.leases) || !u.leases.some((l) => new Date(l.startDate) <= now && (!l.endDate || new Date(l.endDate) >= now)),
   );
 
   const areaVacancy = areaProps.map((p) => {

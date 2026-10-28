@@ -19,7 +19,6 @@ import { CostDialog } from "@/components/cost-dialog";
 import { DeleteButton } from "@/components/delete-button";
 import { deleteCost } from "@/server/actions/costs";
 import { StatementActions } from "@/components/statement-actions";
-import { ExplainStatement } from "@/components/explain-statement";
 import { Link } from "@/i18n/navigation";
 
 export default async function StatementsPage({
@@ -144,7 +143,6 @@ export default async function StatementsPage({
           </div>
           {propertyId && lines.length > 0 && (
             <div className="flex flex-wrap gap-2">
-              <ExplainStatement propertyId={propertyId} year={year} />
               <StatementActions propertyId={propertyId} year={year} />
             </div>
           )}

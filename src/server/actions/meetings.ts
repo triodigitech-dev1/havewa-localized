@@ -12,7 +12,7 @@ import {
 } from "@/lib/schemas";
 
 function fail(msg?: string): ActionState {
-  return { error: msg ?? "Ungültige Eingabe" };
+  return { error: msg ?? "Invalid input" };
 }
 function done(): ActionState {
   revalidatePath("/", "layout");
@@ -25,7 +25,7 @@ export async function createMeeting(_p: ActionState, fd: FormData): Promise<Acti
   const r = meetingCreateSchema.safeParse(Object.fromEntries(fd));
   if (!r.success) return fail(r.error.issues[0]?.message);
   const prop = await prisma.property.findFirst({ where: { id: r.data.propertyId, tenantId: user.tenantId }, select: { id: true } });
-  if (!prop) return fail("Objekt nicht gefunden");
+  if (!prop) return fail("Property not found");
   await prisma.meeting.create({ data: { ...r.data, tenantId: user.tenantId } });
   return done();
 }
@@ -45,13 +45,13 @@ export async function deleteMeeting(fd: FormData): Promise<void> {
   revalidatePath("/", "layout");
 }
 
-// --- AgendaItem (Position automatisch) ---
+// --- AgendaItem (auto-assigned position) ---
 export async function addAgenda(_p: ActionState, fd: FormData): Promise<ActionState> {
   const user = await requireWriter();
   const r = agendaSchema.safeParse(Object.fromEntries(fd));
   if (!r.success) return fail(r.error.issues[0]?.message);
   const meeting = await prisma.meeting.findFirst({ where: { id: r.data.meetingId, tenantId: user.tenantId }, select: { id: true } });
-  if (!meeting) return fail("Versammlung nicht gefunden");
+  if (!meeting) return fail("Meeting not found");
   const count = await prisma.agendaItem.count({ where: { meetingId: r.data.meetingId } });
   await prisma.agendaItem.create({ data: { ...r.data, tenantId: user.tenantId, position: count + 1 } });
   return done();
@@ -63,13 +63,13 @@ export async function deleteAgenda(fd: FormData): Promise<void> {
   revalidatePath("/", "layout");
 }
 
-// --- Resolution (Beschlussnummer fortlaufend je Objekt) ---
+// --- Resolution (consecutive numbering per property) ---
 export async function createResolution(_p: ActionState, fd: FormData): Promise<ActionState> {
   const user = await requireWriter();
   const r = resolutionSchema.safeParse(Object.fromEntries(fd));
   if (!r.success) return fail(r.error.issues[0]?.message);
   const prop = await prisma.property.findFirst({ where: { id: r.data.propertyId, tenantId: user.tenantId }, select: { id: true } });
-  if (!prop) return fail("Objekt nicht gefunden");
+  if (!prop) return fail("Property not found");
   const last = await prisma.resolution.findFirst({
     where: { propertyId: r.data.propertyId, tenantId: user.tenantId },
     orderBy: { number: "desc" },

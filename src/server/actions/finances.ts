@@ -19,7 +19,7 @@ import { simplePdf } from "@/lib/pdf";
 import { saveFile } from "@/lib/storage";
 import { money, date } from "@/lib/format";
 
-// Standard-Kontenrahmen für den Mandanten anlegen (idempotent).
+// Create default chart of accounts for the tenant (idempotent)
 export async function seedDefaultAccounts(): Promise<void> {
   const user = await requireWriter();
   await ensureDefaultAccounts(prisma, user.tenantId);
@@ -27,7 +27,7 @@ export async function seedDefaultAccounts(): Promise<void> {
 }
 
 function fail(msg?: string): ActionState {
-  return { error: msg ?? "Ungültige Eingabe" };
+  return { error: msg ?? "Invalid input" };
 }
 function done(): ActionState {
   revalidatePath("/", "layout");
@@ -48,7 +48,7 @@ export async function deleteAccount(fd: FormData): Promise<void> {
   revalidatePath("/", "layout");
 }
 
-// --- Charge (manuell) ---
+// --- Charge (manual) ---
 export async function createCharge(_p: ActionState, fd: FormData): Promise<ActionState> {
   const user = await requireWriter();
   const r = chargeSchema.safeParse(Object.fromEntries(fd));
@@ -62,7 +62,7 @@ export async function deleteCharge(fd: FormData): Promise<void> {
   revalidatePath("/", "layout");
 }
 
-// --- Sollstellungslauf: Miete für aktive Verträge eines Monats ---
+// --- Monthly rent charge generation for active contracts ---
 export async function generateCharges(_p: ActionState, fd: FormData): Promise<ActionState> {
   const user = await requireWriter();
   const r = generateSchema.safeParse(Object.fromEntries(fd));
@@ -83,7 +83,7 @@ export async function generateCharges(_p: ActionState, fd: FormData): Promise<Ac
 
   let created = 0;
   for (const l of leases) {
-    if (l.charges.length > 0) continue; // schon vorhanden
+    if (l.charges.length > 0) continue; // Already generated
     const warm = Number(l.rentCold) + l.components.reduce((a, c) => a + Number(c.amount), 0);
     await prisma.charge.create({
       data: {
@@ -99,7 +99,7 @@ export async function generateCharges(_p: ActionState, fd: FormData): Promise<Ac
   }
   created += await generateAreaCharges(user.tenantId, first, due, last);
   revalidatePath("/", "layout");
-  return { ok: true, error: created === 0 ? "Keine neuen Sollstellungen (bereits vorhanden)" : undefined };
+  return { ok: true, error: created === 0 ? "No new charges to generate (already up to date)" : undefined };
 }
 
 // --- Payment ---
@@ -107,10 +107,10 @@ export async function createPayment(_p: ActionState, fd: FormData): Promise<Acti
   const user = await requireWriter();
   const r = paymentSchema.safeParse(Object.fromEntries(fd));
   if (!r.success) return fail(r.error.issues[0]?.message);
-  // Zugehörigkeit prüfen (Charge/Account des Mandanten)
+  // Verify charge belongs to tenant
   if (r.data.chargeId) {
     const c = await prisma.charge.findFirst({ where: { id: r.data.chargeId, tenantId: user.tenantId }, select: { id: true } });
-    if (!c) return fail("Sollstellung nicht gefunden");
+    if (!c) return fail("Charge not found");
   }
   await prisma.payment.create({ data: { ...r.data, tenantId: user.tenantId } });
   return done();
@@ -121,13 +121,13 @@ export async function deletePayment(fd: FormData): Promise<void> {
   revalidatePath("/", "layout");
 }
 
-// --- SEPA-Mandat ---
+// --- SEPA Mandate ---
 export async function createMandate(_p: ActionState, fd: FormData): Promise<ActionState> {
   const user = await requireWriter();
   const r = mandateSchema.safeParse(Object.fromEntries(fd));
   if (!r.success) return fail(r.error.issues[0]?.message);
   const p = await prisma.person.findFirst({ where: { id: r.data.personId, tenantId: user.tenantId }, select: { id: true } });
-  if (!p) return fail("Person nicht gefunden");
+  if (!p) return fail("Person not found");
   await prisma.sepaMandate.create({ data: { ...r.data, tenantId: user.tenantId } });
   return done();
 }
@@ -137,27 +137,23 @@ export async function deleteMandate(fd: FormData): Promise<void> {
   revalidatePath("/", "layout");
 }
 
-// --- camt.053 Bankimport mit naivem Auto-Matching ---
-export async function importCamt(_p: ActionState, fd: FormData): Promise<ActionState> {
+// --- camt.053 Bank import with auto-matching ---
+export async function importCamt053(_p: ActionState, fd: FormData): Promise<ActionState> {
   const user = await requireWriter();
+  const accountId = String(fd.get("accountId") ?? "");
   const file = fd.get("file");
-  if (!(file instanceof File) || file.size === 0) return fail("Keine Datei");
-  const accountId = String(fd.get("accountId") ?? "") || null;
+  if (!accountId) return fail("Bank account is required");
+  if (!(file instanceof File) || file.size === 0) return fail("No file selected");
 
-  let entries;
-  try {
-    entries = parseCamt053(await file.text());
-  } catch {
-    return fail("camt.053 konnte nicht gelesen werden");
-  }
-  if (entries.length === 0) return fail("Keine Buchungen in der Datei");
+  const xml = await file.text();
+  const entries = parseCamt053(xml);
 
-  // offene Beträge je Sollstellung für Auto-Matching
-  const charges = await prisma.charge.findMany({
+  // Outstanding amounts for auto-matching
+  const openCharges = await prisma.charge.findMany({
     where: { tenantId: user.tenantId },
     include: { payments: { select: { amount: true } } },
   });
-  const openMap = charges.map((c) => ({
+  const openMap = openCharges.map((c) => ({
     id: c.id,
     open: Number(c.amount) - c.payments.reduce((a, p) => a + Number(p.amount), 0),
   }));
@@ -166,10 +162,10 @@ export async function importCamt(_p: ActionState, fd: FormData): Promise<ActionS
   for (const e of entries) {
     let chargeId: string | null = null;
     if (e.direction === "EINGANG") {
-      const hit = openMap.find((o) => o.open > 0 && Math.abs(o.open - e.amount) < 0.005);
+      const hit = openMap.find((c) => c.open > 0 && Math.abs(c.open - e.amount) < 0.01);
       if (hit) {
         chargeId = hit.id;
-        hit.open = 0; // verbraucht
+        hit.open = 0;
         matched++;
       }
     }
@@ -186,10 +182,12 @@ export async function importCamt(_p: ActionState, fd: FormData): Promise<ActionS
     });
   }
   revalidatePath("/", "layout");
-  return { ok: true, error: `${entries.length} Buchungen, ${matched} zugeordnet` };
+  return { ok: true, error: `${entries.length} transactions, ${matched} matched` };
 }
 
-// --- Mahnung: nächste Stufe für überfällige Sollstellung ---
+export const importCamt = importCamt053;
+
+// --- Dunning notice: advance overdue charge ---
 const DUNNING_FEE: Record<number, number> = { 1: 0, 2: 5, 3: 10 };
 export async function createDunning(fd: FormData): Promise<void> {
   const user = await requireWriter();
@@ -207,7 +205,7 @@ export async function createDunning(fd: FormData): Promise<void> {
   revalidatePath("/", "layout");
 }
 
-// --- Mahnung als PDF an den Mieter mailen (Entwurf im Postausgang) + Ablage ---
+// --- Dunning notice as PDF email draft to resident + archive ---
 export async function emailDunning(fd: FormData): Promise<void> {
   const user = await requireWriter();
   const chargeId = String(fd.get("chargeId") ?? "");
@@ -234,18 +232,18 @@ export async function emailDunning(fd: FormData): Promise<void> {
   const level = dun?.level ?? 1;
   const property = charge.lease.unit.building.property;
   const renter = charge.lease.renters[0]?.person;
-  if (!renter?.email) return; // ohne E-Mail kein Entwurf
+  if (!renter?.email) return;
 
-  const title = level >= 2 ? `${level}. Mahnung` : "Zahlungserinnerung";
+  const title = level >= 2 ? `Payment Reminder (Stage ${level})` : "Payment Reminder";
   const pdf = simplePdf(title, [
     `${property.name} - ${charge.lease.unit.label}`,
-    `Mieter: ${renter.firstName} ${renter.lastName}`,
+    `Resident: ${renter.firstName} ${renter.lastName}`,
     "",
-    `Offener Posten (faellig ${date(charge.dueDate)}): ${money(open)}`,
-    fee > 0 ? `Mahngebuehr: ${money(fee)}` : "",
-    `Offener Gesamtbetrag: ${money(total)}`,
+    `Outstanding balance (due ${date(charge.dueDate)}): ${money(open)}`,
+    fee > 0 ? `Late fee: ${money(fee)}` : "",
+    `Total balance due: ${money(total)}`,
     "",
-    "Wir bitten um Ausgleich innerhalb von 14 Tagen.",
+    "Please settle this payment within 14 business days.",
   ].filter(Boolean));
   const name = `${title} - ${charge.lease.unit.label}.pdf`;
   const storageKey = await saveFile(pdf, name);
@@ -265,7 +263,7 @@ export async function emailDunning(fd: FormData): Promise<void> {
       tenantId: user.tenantId,
       toAddress: renter.email,
       subject: `${title} · ${property.name}`,
-      body: `Sehr geehrte/r ${renter.firstName} ${renter.lastName},\n\nanbei ${title.toLowerCase()} über ${money(total)}.\n\nMit freundlichen Grüßen\n${property.tenant.name}`,
+      body: `Dear ${renter.firstName} ${renter.lastName},\n\nPlease find attached the ${title.toLowerCase()} for ${money(total)}.\n\nBest regards,\n${property.tenant.name}`,
       status: "ENTWURF",
       attachments: { create: [{ documentId: doc.id }] },
     },

@@ -15,7 +15,8 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
-import { APP_VERSION_LABEL, APP_VERSION_FULL } from "@/lib/version";
+import { BrandLogo } from "@/components/brand-logo";
+import { SidebarSystemStatus } from "@/components/sidebar-system-status";
 
 export function AppSidebar({ logoUrl }: { logoUrl?: string }) {
   const t = useTranslations();
@@ -24,13 +25,16 @@ export function AppSidebar({ logoUrl }: { logoUrl?: string }) {
   return (
     <Sidebar>
       <SidebarHeader>
-        <div className="flex items-center gap-2 px-2 py-1.5">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={logoUrl ?? "/icon.png"} alt="HaVeWa" className="size-8 rounded-md object-contain" />
-          <div className="grid leading-tight">
-            <span className="font-semibold">{t("app.name")}</span>
-            <span className="text-xs text-muted-foreground">{t("app.tagline")}</span>
-          </div>
+        <div className="px-2 py-2 flex items-center justify-between">
+          <Link
+            href="/dashboard"
+            className="flex items-center gap-2 group transition-opacity hover:opacity-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 rounded-xl"
+            title="Localea Rental Management"
+            aria-label="Localea Rental Management"
+          >
+            {/* Standalone Brand Emblem alone without cluttering text words */}
+            <BrandLogo logoUrl={logoUrl} size="md" />
+          </Link>
         </div>
       </SidebarHeader>
       <SidebarContent>
@@ -60,10 +64,8 @@ export function AppSidebar({ logoUrl }: { logoUrl?: string }) {
           </SidebarGroup>
         ))}
       </SidebarContent>
-      <SidebarFooter>
-        <div className="px-2 py-1 text-xs text-muted-foreground" title={APP_VERSION_FULL}>
-          {APP_VERSION_LABEL}
-        </div>
+      <SidebarFooter className="p-2 border-t border-sidebar-border/40">
+        <SidebarSystemStatus />
       </SidebarFooter>
     </Sidebar>
   );

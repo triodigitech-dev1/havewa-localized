@@ -15,13 +15,13 @@ const addrList = (s: string | undefined | null) =>
 export async function createEmail(_p: ActionState, fd: FormData): Promise<ActionState> {
   const user = await requireWriter();
   const r = emailSchema.safeParse(Object.fromEntries(fd));
-  if (!r.success) return { error: r.error.issues[0]?.message ?? "Ungültige Eingabe" };
+  if (!r.success) return { error: r.error.issues[0]?.message ?? "Invalid input" };
 
-  // Angehängte Dokumente (documentId je Checkbox) — auf Mandant prüfen.
+  // Check attached documents belong to tenant
   const docIds = fd.getAll("documentIds").map(String).filter(Boolean);
   if (docIds.length) {
     const count = await prisma.document.count({ where: { id: { in: docIds }, tenantId: user.tenantId } });
-    if (count !== docIds.length) return { error: "Dokument nicht gefunden" };
+    if (count !== docIds.length) return { error: "Document not found" };
   }
 
   const msg = await prisma.emailMessage.create({
@@ -62,13 +62,13 @@ export async function sendEmail(fd: FormData): Promise<void> {
 
   const cfg = await smtpConfig(user.tenantId);
   try {
-    // Anhänge aus der Dokumentenablage laden.
+    // Load attachments from storage
     const attachments: MailAttachment[] = [];
     for (const a of msg.attachments) {
       try {
         attachments.push({ filename: a.document.name, content: await readFile(a.document.storageKey) });
       } catch {
-        // fehlende Datei überspringen
+        // Skip missing files gracefully
       }
     }
     await sendMail(
@@ -91,34 +91,34 @@ export async function sendEmail(fd: FormData): Promise<void> {
       "UPDATE",
       "EmailMessage",
       msg.id,
-      isMailerConfigured(cfg) ? "gesendet" : "in Postausgang gestellt (kein SMTP)",
+      isMailerConfigured(cfg) ? "sent" : "queued in outbox (no SMTP configured)",
     );
   } catch (e) {
     await prisma.emailMessage.update({
       where: { id: msg.id },
-      data: { status: "FEHLER", error: e instanceof Error ? e.message : "Versand fehlgeschlagen" },
+      data: { status: "FEHLER", error: e instanceof Error ? e.message : "Email sending failed" },
     });
   }
   revalidatePath("/", "layout");
 }
 
-/** Serien-Mail: Entwurf je Mieter oder Eigentümer eines Objekts. */
+/** Bulk email: Draft for each tenant or owner of a property. */
 export async function bulkEmail(_p: ActionState, fd: FormData): Promise<ActionState> {
   const user = await requireWriter();
   const propertyId = String(fd.get("propertyId") ?? "");
   const audience = String(fd.get("audience") ?? "");
   const subject = String(fd.get("subject") ?? "").trim();
   const body = String(fd.get("body") ?? "").trim();
-  if (!propertyId || !subject || !body) return { error: "Objekt, Betreff und Nachricht erforderlich." };
+  if (!propertyId || !subject || !body) return { error: "Property, subject, and message are required." };
 
   const prop = await prisma.property.findFirst({
     where: { id: propertyId, tenantId: user.tenantId },
     select: { name: true },
   });
-  const objektName = prop?.name ?? "";
-  const datum = new Date().toLocaleDateString("de-DE");
+  const propertyName = prop?.name ?? "";
+  const dateStr = new Date().toLocaleDateString("en-US");
 
-  // Empfänger mit Kontext einsammeln (dedupliziert je E-Mail).
+  // Collect recipients with context (deduplicated by email)
   const recips = new Map<string, { name: string; nameKey: string }>();
   if (audience === "EIGENTUEMER") {
     const owners = await prisma.owner.findMany({
@@ -129,7 +129,7 @@ export async function bulkEmail(_p: ActionState, fd: FormData): Promise<ActionSt
       if (o.person.email)
         recips.set(o.person.email, {
           name: `${o.person.firstName} ${o.person.lastName}`,
-          nameKey: "eigentuemer.name",
+          nameKey: "owner.name",
         });
     });
   } else {
@@ -141,18 +141,22 @@ export async function bulkEmail(_p: ActionState, fd: FormData): Promise<ActionSt
       if (r.person.email)
         recips.set(r.person.email, {
           name: `${r.person.firstName} ${r.person.lastName}`,
-          nameKey: "mieter.name",
+          nameKey: "tenant.name",
         });
     });
   }
-  if (recips.size === 0) return { error: "Keine Empfänger mit E-Mail-Adresse gefunden." };
+  if (recips.size === 0) return { error: "No recipients with email addresses found." };
 
-  // Platzhalter je Empfänger füllen (Serienbrief).
+  // Fill placeholders for each recipient
   const rows = [...recips.entries()].map(([to, ctx]) => {
     const context: Record<string, string> = {
-      "objekt.name": objektName,
-      datum,
+      "property.name": propertyName,
+      "objekt.name": propertyName,
+      date: dateStr,
+      datum: dateStr,
       [ctx.nameKey]: ctx.name,
+      "tenant.name": ctx.name,
+      "owner.name": ctx.name,
       "mieter.name": ctx.name,
       "eigentuemer.name": ctx.name,
     };
@@ -166,7 +170,7 @@ export async function bulkEmail(_p: ActionState, fd: FormData): Promise<ActionSt
   });
 
   await prisma.emailMessage.createMany({ data: rows });
-  await audit(user, "CREATE", "EmailMessage", null, `Serien-Mail (${rows.length})`);
+  await audit(user, "CREATE", "EmailMessage", null, `Bulk email (${rows.length})`);
   revalidatePath("/", "layout");
   return { ok: true };
 }

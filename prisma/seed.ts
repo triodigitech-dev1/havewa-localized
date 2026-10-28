@@ -28,17 +28,17 @@ async function writeStorage(key: string, buf: Buffer) {
 
 async function main() {
   const tenant = await prisma.tenant.create({
-    data: { name: "Muster Hausverwaltung GmbH", isDemo: true },
+    data: { name: "Localea Property Management Ltd", isDemo: true },
   });
 
   await prisma.user.create({
     data: {
       tenantId: tenant.id,
-      email: "admin@havewa.app",
+      email: "admin@localea.app",
       name: "Admin",
       passwordHash: await bcrypt.hash("admin", 10),
       role: "ADMIN",
-      locale: "de",
+      locale: "en",
     },
   });
 
@@ -120,19 +120,20 @@ async function main() {
     },
   });
 
-  // Portal-Mieter: User an Erika koppeln
+  // Resident portal user: Link user to Erika
   await prisma.user.create({
     data: {
       tenantId: tenant.id,
-      email: "mieter@havewa.app",
+      email: "tenant@localea.app",
       name: "Erika Mustermann",
       passwordHash: await bcrypt.hash("mieter", 10),
       role: "MIETER",
       personId: person.id,
+      locale: "en",
     },
   });
 
-  // WEG-Eigentümer + Portal-User
+  // WEG Owner + Portal User
   const owner = await prisma.person.create({
     data: { tenantId: tenant.id, firstName: "Klaus", lastName: "Eigner", email: "klaus@example.de" },
   });
@@ -143,11 +144,12 @@ async function main() {
   await prisma.user.create({
     data: {
       tenantId: tenant.id,
-      email: "eigentuemer@havewa.app",
+      email: "owner@localea.app",
       name: "Klaus Eigner",
       passwordHash: await bcrypt.hash("eigentuemer", 10),
       role: "EIGENTUEMER",
       personId: owner.id,
+      locale: "en",
     },
   });
 
@@ -395,7 +397,7 @@ async function main() {
     },
   });
 
-  console.log("Seed fertig. Admin: admin@havewa.app/admin · Mieter: mieter@havewa.app/mieter · Eigentümer: eigentuemer@havewa.app/eigentuemer");
+  console.log("Seed complete. Admin: admin@localea.app / admin · Resident: tenant@localea.app / mieter · Owner: owner@localea.app / eigentuemer");
 }
 
 main()

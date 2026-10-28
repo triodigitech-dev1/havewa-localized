@@ -103,18 +103,22 @@ export async function PaymentDialog({
   chargeId,
   defaultAmount,
   accounts,
+  trigger,
 }: {
   chargeId: string;
   defaultAmount: number;
   accounts: Opt[];
+  trigger?: React.ReactElement;
 }) {
   const t = await getTranslations();
   return (
     <CrudDialog
       trigger={
-        <Button variant="ghost" size="icon" aria-label={t("finances.recordPayment")} title={t("finances.recordPayment")}>
-          <Wallet className="size-4" />
-        </Button>
+        trigger ?? (
+          <Button variant="ghost" size="icon" aria-label={t("finances.recordPayment")} title={t("finances.recordPayment")}>
+            <Wallet className="size-4" />
+          </Button>
+        )
       }
       title={t("finances.recordPayment")}
       action={createPayment}

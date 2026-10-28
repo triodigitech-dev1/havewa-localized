@@ -1,0 +1,5 @@
+{
+  "name": "Localea Rental & Property Management",
+  "description": "Modern rental and property management system for residential and commercial units, leases, tenants, accounting, and maintenance with KES currency support.",
+  "capabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

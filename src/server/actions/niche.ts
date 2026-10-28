@@ -9,7 +9,7 @@ async function assertProperty(tenantId: string, propertyId: string) {
   return prisma.property.findFirst({ where: { id: propertyId, tenantId }, select: { id: true } });
 }
 
-// Kostenposition je Objekt/Jahr/Typ anlegen oder aktualisieren (kein Doppelbuchen).
+// Create or update cost item per property/year/type (prevents duplicate entries)
 async function upsertCost(
   tenantId: string,
   propertyId: string,
@@ -27,7 +27,7 @@ async function upsertCost(
   }
 }
 
-// Grundsteuer als Kostenposition (BetrKV) buchen — statt separatem Reiter.
+// Post property tax as an operating cost line item
 export async function bookGrundsteuerAsCost(fd: FormData): Promise<void> {
   const user = await requireWriter();
   const propertyId = String(fd.get("propertyId") ?? "");
@@ -40,7 +40,7 @@ export async function bookGrundsteuerAsCost(fd: FormData): Promise<void> {
   revalidatePath("/", "layout");
 }
 
-// Versicherung als Kostenposition (BetrKV) buchen.
+// Post insurance as an operating cost line item
 export async function bookInsuranceAsCost(fd: FormData): Promise<void> {
   const user = await requireWriter();
   const id = String(fd.get("id") ?? "");
@@ -51,12 +51,12 @@ export async function bookInsuranceAsCost(fd: FormData): Promise<void> {
   revalidatePath("/", "layout");
 }
 
-// --- Versicherung ---
+// --- Insurance ---
 export async function createInsurance(_p: ActionState, fd: FormData): Promise<ActionState> {
   const user = await requireWriter();
   const r = insuranceSchema.safeParse(Object.fromEntries(fd));
-  if (!r.success) return { error: r.error.issues[0]?.message ?? "Ungültige Eingabe" };
-  if (!(await assertProperty(user.tenantId, r.data.propertyId))) return { error: "Objekt nicht gefunden" };
+  if (!r.success) return { error: r.error.issues[0]?.message ?? "Invalid input" };
+  if (!(await assertProperty(user.tenantId, r.data.propertyId))) return { error: "Property not found" };
   await prisma.insurance.create({ data: { ...r.data, tenantId: user.tenantId } });
   revalidatePath("/", "layout");
   return { ok: true };
@@ -68,12 +68,12 @@ export async function deleteInsurance(fd: FormData): Promise<void> {
   revalidatePath("/", "layout");
 }
 
-// --- Grundsteuer (upsert je Objekt) ---
+// --- Property Tax (upsert per property) ---
 export async function upsertPropertyTax(_p: ActionState, fd: FormData): Promise<ActionState> {
   const user = await requireWriter();
   const r = propertyTaxSchema.safeParse(Object.fromEntries(fd));
-  if (!r.success) return { error: r.error.issues[0]?.message ?? "Ungültige Eingabe" };
-  if (!(await assertProperty(user.tenantId, r.data.propertyId))) return { error: "Objekt nicht gefunden" };
+  if (!r.success) return { error: r.error.issues[0]?.message ?? "Invalid input" };
+  if (!(await assertProperty(user.tenantId, r.data.propertyId))) return { error: "Property not found" };
   const { propertyId, ...data } = r.data;
   await prisma.propertyTax.upsert({
     where: { propertyId },

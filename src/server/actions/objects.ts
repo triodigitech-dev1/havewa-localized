@@ -17,7 +17,7 @@ import {
 } from "@/lib/schemas";
 
 function fail(msg?: string): ActionState {
-  return { error: msg ?? "Ungültige Eingabe" };
+  return { error: msg ?? "Invalid input" };
 }
 function done(): ActionState {
   revalidatePath("/", "layout");
@@ -64,12 +64,12 @@ export async function createBuilding(_p: ActionState, fd: FormData): Promise<Act
   const user = await requireWriter();
   const r = buildingSchema.safeParse(Object.fromEntries(fd));
   if (!r.success) return fail(r.error.issues[0]?.message);
-  // Property muss zum Mandanten gehören.
+  // Property must belong to tenant
   const prop = await prisma.property.findFirst({
     where: { id: r.data.propertyId, tenantId: user.tenantId },
     select: { id: true },
   });
-  if (!prop) return fail("Objekt nicht gefunden");
+  if (!prop) return fail("Property not found");
   await prisma.building.create({ data: { ...r.data, tenantId: user.tenantId } });
   return done();
 }
@@ -104,7 +104,7 @@ export async function createUnit(_p: ActionState, fd: FormData): Promise<ActionS
     where: { id: r.data.buildingId, tenantId: user.tenantId },
     select: { id: true },
   });
-  if (!b) return fail("Gebäude nicht gefunden");
+  if (!b) return fail("Building not found");
   await prisma.unit.create({ data: { ...r.data, custom: pickCustom(entries), tenantId: user.tenantId } });
   return done();
 }
@@ -136,7 +136,7 @@ export async function createMeter(_p: ActionState, fd: FormData): Promise<Action
     where: { id: r.data.unitId, tenantId: user.tenantId },
     select: { id: true },
   });
-  if (!u) return fail("Einheit nicht gefunden");
+  if (!u) return fail("Unit not found");
   await prisma.meter.create({ data: { ...r.data, tenantId: user.tenantId } });
   return done();
 }
@@ -158,7 +158,7 @@ export async function createReading(_p: ActionState, fd: FormData): Promise<Acti
     where: { id: r.data.meterId, tenantId: user.tenantId },
     select: { id: true },
   });
-  if (!m) return fail("Zähler nicht gefunden");
+  if (!m) return fail("Meter not found");
   await prisma.meterReading.create({ data: { ...r.data, tenantId: user.tenantId } });
   return done();
 }

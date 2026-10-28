@@ -12,16 +12,16 @@ const issueSchema = z.object({
   description: z.string().trim().optional().transform((v) => (v ? v : undefined)),
 });
 
-// Schadensmeldung durch Portal-Nutzer (Mieter). Verknüpft mit eigener Einheit.
+// Issue reporting by resident portal user. Associated with their leased unit.
 export async function reportIssue(_p: ActionState, fd: FormData): Promise<ActionState> {
   const user = await requireUser();
   const r = issueSchema.safeParse(Object.fromEntries(fd));
-  if (!r.success) return { error: r.error.issues[0]?.message ?? "Ungültige Eingabe" };
+  if (!r.success) return { error: r.error.issues[0]?.message ?? "Invalid input" };
 
   const dbUser = await prisma.user.findUnique({ where: { id: user.id }, select: { personId: true } });
-  if (!dbUser?.personId) return { error: "Kein Personenbezug" };
+  if (!dbUser?.personId) return { error: "No associated resident profile found" };
 
-  // Einheit über Mietvertrag der Person ermitteln
+  // Find unit via person's active lease
   const renter = await prisma.renter.findFirst({
     where: { tenantId: user.tenantId, personId: dbUser.personId },
     include: { lease: { include: { unit: { include: { building: true } } } } },
@@ -42,10 +42,10 @@ export async function reportIssue(_p: ActionState, fd: FormData): Promise<Action
     },
   });
 
-  // Verwalter benachrichtigen — sonst bleibt die Meldung unbemerkt.
+  // Notify property managers
   const where = renter ? `${renter.lease.unit.building.name} · ${renter.lease.unit.label}` : "";
   await notifyManagers(user.tenantId, {
-    title: `Neue Schadensmeldung: ${r.data.title}`,
+    title: `New maintenance report: ${r.data.title}`,
     body: [where, user.name].filter(Boolean).join(" — "),
     link: "/tickets",
   });

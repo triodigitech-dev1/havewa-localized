@@ -17,12 +17,12 @@ const truthy = (v: string | undefined) => ["1", "true", "yes", "on"].includes(St
 async function main() {
   const users = await prisma.user.count();
   if (users > 0) {
-    console.log("[bootstrap] bereits eingerichtet — übersprungen.");
+    console.log("[bootstrap] System already configured — skipping initialization.");
     return;
   }
 
   if (truthy(process.env.SEED_DEMO)) {
-    console.log("[bootstrap] SEED_DEMO gesetzt — spiele Demo-Datensatz ein …");
+    console.log("[bootstrap] SEED_DEMO enabled — loading demo dataset...");
     await prisma.$disconnect();
     execSync("npx tsx prisma/seed.ts", { stdio: "inherit" });
     return;
@@ -31,8 +31,8 @@ async function main() {
   const email = process.env.ADMIN_EMAIL?.trim();
   const password = process.env.ADMIN_PASSWORD;
   if (email && password) {
-    const tenantName = process.env.TENANT_NAME?.trim() || "HaVeWa";
-    const adminName = process.env.ADMIN_NAME?.trim() || "Admin";
+    const tenantName = process.env.TENANT_NAME?.trim() || "Localea";
+    const adminName = process.env.ADMIN_NAME?.trim() || "Administrator";
     const tenant = await prisma.tenant.create({ data: { name: tenantName } });
     await prisma.user.create({
       data: {
@@ -44,11 +44,11 @@ async function main() {
       },
     });
     await ensureDefaultAccounts(prisma, tenant.id);
-    console.log(`[bootstrap] Mandant "${tenantName}" + Admin ${email} + Standard-Konten angelegt.`);
+    console.log(`[bootstrap] Tenant "${tenantName}" + Admin ${email} + default chart of accounts created.`);
     return;
   }
 
-  console.log("[bootstrap] keine Env gesetzt — Ersteinrichtung über den Wizard beim ersten Login.");
+  console.log("[bootstrap] No setup env provided — initial setup guided via wizard on first launch.");
 }
 
 main()

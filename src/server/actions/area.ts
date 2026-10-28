@@ -6,7 +6,7 @@ import { requireWriter } from "@/lib/rbac";
 import { areaAllocationSchema, type ActionState } from "@/lib/schemas";
 
 function fail(msg?: string): ActionState {
-  return { error: msg ?? "Ungültige Eingabe" };
+  return { error: msg ?? "Invalid input" };
 }
 function done(): ActionState {
   revalidatePath("/", "layout");
@@ -15,14 +15,14 @@ function done(): ActionState {
 
 async function checkRefs(tenantId: string, propertyId: string, leaseId?: string, personId?: string) {
   const prop = await prisma.property.findFirst({ where: { id: propertyId, tenantId }, select: { id: true } });
-  if (!prop) return "Objekt nicht gefunden";
+  if (!prop) return "Property not found";
   if (leaseId) {
     const lease = await prisma.lease.findFirst({ where: { id: leaseId, tenantId }, select: { id: true } });
-    if (!lease) return "Vertrag nicht gefunden";
+    if (!lease) return "Lease not found";
   }
   if (personId) {
     const person = await prisma.person.findFirst({ where: { id: personId, tenantId }, select: { id: true } });
-    if (!person) return "Person nicht gefunden";
+    if (!person) return "Person not found";
   }
   return null;
 }

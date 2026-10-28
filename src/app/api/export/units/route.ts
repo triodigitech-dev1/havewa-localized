@@ -15,7 +15,9 @@ export async function GET() {
     orderBy: { createdAt: "asc" },
   });
   const rows = units.map((u) => {
-    const active = u.leases.find((l) => l.startDate <= now && (!l.endDate || l.endDate >= now));
+    const active = Array.isArray(u.leases)
+      ? u.leases.find((l) => new Date(l.startDate) <= now && (!l.endDate || new Date(l.endDate) >= now))
+      : undefined;
     return [
       u.building.property.name,
       u.building.name,

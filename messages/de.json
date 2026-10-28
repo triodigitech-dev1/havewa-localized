@@ -1,7 +1,7 @@
 {
   "app": {
-    "name": "HaVeWa",
-    "tagline": "Hausverwaltung"
+    "name": "Localea",
+    "tagline": "Miet- und Immobilienverwaltung"
   },
   "common": {
     "search": "Suchen",
@@ -170,7 +170,7 @@
     "brandColor": "Theme-Farbe",
     "preview": "Vorschau",
     "submit": "Einrichtung abschließen",
-    "welcomeTitle": "Willkommen bei HaVeWa",
+    "welcomeTitle": "Willkommen bei Localea",
     "welcomeText": "In wenigen Schritten ist Ihre Hausverwaltung startklar. Sie können Schritte überspringen und später in den Einstellungen ergänzen.",
     "brandingText": "Wählen Sie eine Theme-Farbe für Ihre App — jederzeit änderbar.",
     "propertyText": "Optional: legen Sie direkt Ihr erstes Objekt an.",
@@ -224,7 +224,7 @@
     "or": "oder",
     "ssoSubmit": "Mit {provider} anmelden",
     "error": "E-Mail oder Passwort falsch",
-    "demoHint": "Demo: admin@havewa.app / admin",
+    "demoHint": "Demo: admin@localea.app / admin",
     "tagline": "Miet- und WEG-Verwaltung in einem System.",
     "point1": "Betriebskostenabrechnung nach BetrKV & HeizkostenV",
     "point2": "WEG-Jahresabrechnung, Versammlungen & Rücklagen",
@@ -265,7 +265,12 @@
     "empty": "Noch keine Objekte. Legen Sie das erste an.",
     "buildings": "Gebäude",
     "units": "Einheiten",
-    "detailTitle": "Objektdetails"
+    "detailTitle": "Objektdetails",
+    "utilityAndCosts": "Betriebskosten & Liegenschaftsausgaben",
+    "utilitySubtitle": "Umlagefähige Kosten (Wasser, Heizung, Müll, Versicherung) für Objekt und Einheiten",
+    "recentTickets": "Instandhaltung & Tickets",
+    "noRecentTickets": "Keine Tickets für dieses Objekt erfasst.",
+    "addCost": "Betriebskosten / Ausgabe erfassen"
   },
   "buildings": {
     "new": "Neues Gebäude",
@@ -307,7 +312,26 @@
     "tenancies": "Mietverhältnisse",
     "noTenancies": "Keine Mietverhältnisse.",
     "ownerships": "Eigentum",
-    "noOwnerships": "Kein Eigentum hinterlegt."
+    "noOwnerships": "Kein Eigentum hinterlegt.",
+    "financialLedger": "Soll- & Haben-Konto (Mietkonto)",
+    "ledgerSubtitle": "Forderungen, Zahlungseingänge, Saldo und Mieter-Guthaben",
+    "totalDebits": "Forderungen gesamt (Soll)",
+    "totalCredits": "Zahlungseingänge gesamt (Haben)",
+    "netBalance": "Aktueller Kontosaldo",
+    "inCredit": "Guthaben (Überzahlung)",
+    "balanceDue": "Offener Rückstand",
+    "settled": "Ausgeglichen",
+    "recordPayment": "Zahlung verbuchen",
+    "financialStatus": "Finanzstatus",
+    "portfolioCredit": "Mieterguthaben gesamt",
+    "portfolioDue": "Mieter-Rückstände gesamt",
+    "ledgerDate": "Datum",
+    "ledgerType": "Buchungstyp",
+    "ledgerDebit": "Soll (Forderung)",
+    "ledgerCredit": "Haben (Zahlung)",
+    "ledgerRunning": "Laufender Saldo",
+    "ledgerReference": "Verwendungszweck / Vertrag",
+    "noLedgerEntries": "Keine Finanzbuchungen für diese Person vorhanden."
   },
   "personType": {
     "MIETER": "Mieter",
@@ -576,6 +600,7 @@
     "generate": "Sollstellung erzeugen",
     "month": "Monat",
     "totalOpen": "Offene Posten gesamt",
+    "totalOverpaid": "Mieterguthaben gesamt (Überzahlungen)",
     "openItems": "Offene Posten",
     "noOpenItems": "Keine offenen Posten.",
     "accounts": "Konten",
@@ -601,6 +626,7 @@
     "statusPARTIAL": "Teilzahlung",
     "statusPAID": "Bezahlt",
     "statusOVERDUE": "Überfällig",
+    "statusOVERPAID": "Überzahlt (Guthaben)",
     "importExport": "Import / Export",
     "importCamt": "camt.053 importieren",
     "datevExport": "DATEV-Export",

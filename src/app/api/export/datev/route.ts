@@ -18,10 +18,10 @@ export async function GET() {
   const rows: DatevRow[] = payments.map((p) => ({
     amount: Number(p.amount),
     debitCredit: p.direction === "EINGANG" ? "S" : "H",
-    account: "1200", // Bank
-    contraAccount: "8000", // Erlöse (Platzhalter-Kontenrahmen)
+    account: "1200", // Operating bank
+    contraAccount: "8000", // Revenue / reconciliation account
     date: p.date.toISOString().slice(0, 10),
-    text: p.reference ?? (p.charge ? p.charge.type : "Zahlung"),
+    text: p.reference ?? (p.charge ? p.charge.type : "Payment"),
     invoiceField: p.reference ?? undefined,
   }));
 
@@ -31,16 +31,16 @@ export async function GET() {
     wjBeginn: new Date(Date.UTC(year, 0, 1)),
     datumVon: new Date(Date.UTC(year, 0, 1)),
     datumBis: new Date(Date.UTC(year, 11, 31)),
-    bezeichnung: `Buchungsstapel ${year}`,
+    bezeichnung: `Batch ${year}`,
     now,
   });
 
-  // DATEV erwartet Windows-1252 (ANSI), nicht UTF-8.
+  // Export encoded in Windows-1252 as expected by financial accounting tools
   const buf = Buffer.from(extf, "latin1");
   return new Response(buf, {
     headers: {
       "Content-Type": "text/csv; charset=windows-1252",
-      "Content-Disposition": `attachment; filename="EXTF_Buchungsstapel.csv"`,
+      "Content-Disposition": `attachment; filename="EXTF_Transactions_${year}.csv"`,
     },
   });
 }

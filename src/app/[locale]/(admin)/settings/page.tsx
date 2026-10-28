@@ -166,13 +166,8 @@ export default async function SettingsPage() {
       }
     : null;
 
-  // KI-Assistent + API/MCP in einem Tab.
-  const integrationContent = (
-    <>
-      {isAdmin && cfgProps && <SettingsConfig section="ai" ai={cfgProps.ai} smtp={cfgProps.smtp} />}
-      {apiContent}
-    </>
-  );
+  // API / Tokens integration
+  const integrationContent = apiContent;
 
   const tabs: SettingsTab[] = [{ value: "general", label: t("settings.tabGeneral"), content: generalContent }];
   tabs.push({ value: "integration", label: t("settings.tabIntegration"), content: integrationContent });

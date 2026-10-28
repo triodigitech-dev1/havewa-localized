@@ -1,6 +1,8 @@
 import { redirect } from "next/navigation";
 import { getLocale } from "next-intl/server";
 import { requireUser } from "@/lib/rbac";
+
+export const dynamic = "force-dynamic";
 import { prisma } from "@/lib/prisma";
 import { readableForeground } from "@/lib/color";
 import { NotificationBell } from "@/components/notification-bell";
@@ -15,6 +17,7 @@ import { LanguageSwitcher } from "@/components/language-switcher";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { UserMenu } from "@/components/user-menu";
 import { SearchBox } from "@/components/search-box";
+import { PWAInstallButton } from "@/components/pwa-install-button";
 
 export default async function AdminLayout({
   children,
@@ -44,8 +47,7 @@ export default async function AdminLayout({
 
   return (
     <SidebarProvider>
-      {/* Mandanten-Branding: überschreibt die Primärfarbe inkl. lesbarem
-          Vordergrund (sonst wirken Buttons je nach Farbe "ausgegraut"). */}
+      {/* Tenant branding: customizes primary brand color with optimal readable contrast */}
       {tenant?.brandColor && (
         <style>{`:root{--primary:${tenant.brandColor};--sidebar-primary:${tenant.brandColor};--ring:${tenant.brandColor};--primary-foreground:${readableForeground(tenant.brandColor)};--sidebar-primary-foreground:${readableForeground(tenant.brandColor)};}`}</style>
       )}
@@ -55,7 +57,8 @@ export default async function AdminLayout({
           <SidebarTrigger />
           <Separator orientation="vertical" className="h-6" />
           <SearchBox />
-          <div className="ml-auto flex items-center gap-1">
+          <div className="ml-auto flex items-center gap-1.5">
+            <PWAInstallButton />
             <NotificationBell items={notifItems} unread={unread} />
             <LanguageSwitcher />
             <ThemeToggle />

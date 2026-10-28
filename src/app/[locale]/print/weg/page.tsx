@@ -6,7 +6,7 @@ import { money } from "@/lib/format";
 import { allocate, type AllocationParticipant } from "@/lib/allocation";
 import { PrintButton } from "@/components/print-button";
 
-// Druckbare WEG-Jahresabrechnung inkl. Vermögensbericht.
+// Printable annual HOA statement including statement of assets.
 export default async function PrintWegPage({
   searchParams,
 }: {

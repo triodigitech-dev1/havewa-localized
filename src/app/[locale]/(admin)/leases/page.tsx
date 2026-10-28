@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/table";
 import { LeaseDialog } from "@/components/lease-dialogs";
 import { DeleteButton } from "@/components/delete-button";
+import { WhatsAppReminderButton } from "@/components/whatsapp-reminder-button";
 import { deleteLease } from "@/server/actions/leases";
 
 export default async function LeasesPage() {
@@ -119,7 +120,19 @@ export default async function LeasesPage() {
                         <Badge variant={st.variant}>{t(`leases.${st.key}`)}</Badge>
                       </TableCell>
                       <TableCell>
-                        <div className="flex justify-end gap-1">
+                        <div className="flex justify-end gap-1 items-center">
+                          {l.renters[0] && (
+                            <WhatsAppReminderButton
+                              tenantName={`${l.renters[0].person.firstName} ${l.renters[0].person.lastName}`}
+                              phoneNumber={l.renters[0].person.phone}
+                              unitLabel={l.unit.label}
+                              propertyName={l.unit.building.property.name}
+                              rentAmount={warm(l)}
+                              compact={true}
+                              buttonSize="icon"
+                              buttonVariant="ghost"
+                            />
+                          )}
                           <LeaseDialog
                             units={unitOpts}
                             customDefs={customDefs}

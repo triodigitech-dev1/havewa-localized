@@ -15,6 +15,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { enqueueOfflineItem } from "@/lib/offline-sync";
 
 type Action = (prev: ActionState, fd: FormData) => Promise<ActionState>;
 
@@ -34,30 +35,93 @@ export function CrudDialog({
   const t = useTranslations("common");
   const router = useRouter();
   const [open, setOpen] = useState(false);
-  // Wirft die Server-Action (statt {error} zurückzugeben), blieb der Dialog
-  // sonst offen ohne Hinweis. Fehler abfangen und anzeigen; echte Redirects
-  // (NEXT_REDIRECT, z. B. Login-Guard) müssen durchgereicht werden.
+
+  // If a server action throws or fails due to network/offline conditions,
+  // gracefully intercept it, save to offline sync queue if appropriate,
+  // and maintain NEXT_REDIRECTs intact.
   const safeAction: Action = async (prev, fd) => {
+    const isOffline = typeof navigator !== "undefined" && !navigator.onLine;
+
+    if (isOffline) {
+      const payload: Record<string, unknown> = {};
+      fd.forEach((value, key) => {
+        if (!(value instanceof File)) {
+          payload[key] = value;
+        }
+      });
+
+      let actionType = "GENERIC_SUBMIT";
+      const lowerTitle = title.toLowerCase();
+      if (lowerTitle.includes("ticket") || lowerTitle.includes("maintenance") || lowerTitle.includes("schaden") || lowerTitle.includes("störung")) {
+        actionType = "CREATE_TICKET";
+      } else if (lowerTitle.includes("meter") || lowerTitle.includes("zähler") || fd.has("meterId")) {
+        actionType = "RECORD_READING";
+      } else if (lowerTitle.includes("task") || lowerTitle.includes("aufgabe")) {
+        actionType = "CREATE_TASK";
+      } else if (lowerTitle.includes("issue") || lowerTitle.includes("report") || lowerTitle.includes("melden")) {
+        actionType = "REPORT_ISSUE";
+      }
+
+      await enqueueOfflineItem({
+        actionType,
+        endpoint: "/api/offline-sync",
+        payload,
+        description: `${title}: ${payload.title || payload.label || payload.name || "Form submission"}`,
+      });
+
+      return {
+        ok: true,
+        error: undefined,
+      };
+    }
+
     try {
       return await action(prev, fd);
     } catch (e) {
-      if (e && typeof e === "object" && "digest" in e && String((e as { digest?: unknown }).digest).startsWith("NEXT_REDIRECT")) {
+      if (
+        e &&
+        typeof e === "object" &&
+        "digest" in e &&
+        String((e as { digest?: unknown }).digest).startsWith("NEXT_REDIRECT")
+      ) {
         throw e;
       }
+
+      // Check if failure was caused by lost connectivity
+      const msg = e instanceof Error ? e.message : "";
+      if (msg.includes("fetch") || msg.includes("network") || msg.includes("Failed to fetch")) {
+        const payload: Record<string, unknown> = {};
+        fd.forEach((value, key) => {
+          if (!(value instanceof File)) payload[key] = value;
+        });
+        await enqueueOfflineItem({
+          actionType: "GENERIC_SUBMIT",
+          endpoint: "/api/offline-sync",
+          payload,
+          description: `${title}: ${payload.title || payload.label || payload.name || "Form submission"}`,
+        });
+        return { ok: true };
+      }
+
       return { error: e instanceof Error ? e.message : t("actionFailed") };
     }
   };
+
   const [state, formAction, pending] = useActionState<ActionState, FormData>(safeAction, {});
 
-  // Erfolg genau EINMAL je Absenden behandeln. Ohne den Ref-Guard feuerte der
-  // Effekt bei jedem Re-Render (durch router.refresh) erneut → Toast-Endlosschleife.
+  // Handle success exactly once per submission to prevent infinite toast re-render loops
   const handledState = useRef<ActionState | null>(null);
   useEffect(() => {
     if (state.ok && handledState.current !== state) {
       handledState.current = state;
       setOpen(false);
-      toast.success(t("saved"));
-      router.refresh(); // abhängige Übersichten sofort aktualisieren
+      const isOffline = typeof navigator !== "undefined" && !navigator.onLine;
+      if (isOffline) {
+        toast.info("Saved offline. We'll automatically sync this when connection is restored.");
+      } else {
+        toast.success(t("saved"));
+      }
+      router.refresh();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state]);
@@ -69,7 +133,7 @@ export function CrudDialog({
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
         </DialogHeader>
-        {/* key remountet Formular je Öffnung → frische Felder */}
+        {/* Key remounts fresh inputs each time dialog opens */}
         <form action={formAction} key={open ? "open" : "closed"} className="space-y-4">
           {children}
           {state.error && <p className="text-sm text-destructive">{state.error}</p>}

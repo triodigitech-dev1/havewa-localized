@@ -58,7 +58,6 @@ export default async function PortalPage() {
     orderBy: { createdAt: "desc" },
   });
 
-  const now = new Date();
   const openItems = renters.flatMap((r) =>
     r.lease.charges
       .map((c) => {
@@ -80,7 +79,7 @@ export default async function PortalPage() {
         <p className="text-sm text-muted-foreground">{t(`userRole.${user.role}`)}</p>
       </div>
 
-      {/* Mieter: Mietverhältnisse */}
+      {/* Resident: Active Leases */}
       {renters.length > 0 && (
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0">
@@ -160,7 +159,7 @@ export default async function PortalPage() {
         </Card>
       )}
 
-      {/* Eigentümer: Eigentum */}
+      {/* Owner: Properties and Units */}
       {owners.length > 0 && (
         <Card>
           <CardHeader>
@@ -181,7 +180,7 @@ export default async function PortalPage() {
         </Card>
       )}
 
-      {/* Eigentümer: Beschlüsse */}
+      {/* Owner: HOA Resolutions */}
       {owners.length > 0 && (
         <Card>
           <CardHeader>

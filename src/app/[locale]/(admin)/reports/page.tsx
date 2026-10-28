@@ -38,7 +38,8 @@ export default async function ReportsPage() {
   ]);
 
   const occupied = units.filter((u) =>
-    u.leases.some((l) => l.startDate <= now && (!l.endDate || l.endDate >= now)),
+    Array.isArray(u.leases) &&
+    u.leases.some((l) => new Date(l.startDate) <= now && (!l.endDate || new Date(l.endDate) >= now)),
   );
   const vacant = units.filter((u) => !occupied.includes(u));
   const totalOpen = charges.reduce((a, c) => {

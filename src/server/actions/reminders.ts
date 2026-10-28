@@ -9,8 +9,8 @@ import type { ActionState } from "@/lib/schemas";
 const DAY = 864e5;
 
 /**
- * Erzeugt Aufgaben aus fälligen Fristen: auslaufende Verträge (≤90 Tage) und
- * fällige/überfällige Wartungen (≤30 Tage). Dedupliziert über den Titel.
+ * Generates tasks from upcoming deadlines: leases expiring (<= 90 days) and
+ * scheduled/overdue maintenance (<= 30 days). Deduplicated by title.
  */
 export async function generateReminders(_p: ActionState, _fd: FormData): Promise<ActionState> {
   const user = await requireWriter();
@@ -33,11 +33,11 @@ export async function generateReminders(_p: ActionState, _fd: FormData): Promise
 
   for (const l of leases) {
     if (!l.endDate) continue;
-    const title = `Vertrag läuft aus: ${l.unit.building.property.name} · ${l.unit.label}`;
+    const title = `Lease expiring: ${l.unit.building.property.name} · ${l.unit.label}`;
     if (!seen.has(title)) toCreate.push({ title, dueDate: l.endDate });
   }
   for (const m of maintenance) {
-    const title = `Wartung fällig: ${m.title} (${m.property.name})`;
+    const title = `Maintenance due: ${m.title} (${m.property.name})`;
     if (!seen.has(title)) toCreate.push({ title, dueDate: m.nextDue });
   }
 
@@ -45,10 +45,10 @@ export async function generateReminders(_p: ActionState, _fd: FormData): Promise
     await prisma.task.createMany({
       data: toCreate.map((t) => ({ tenantId: user.tenantId, title: t.title, dueDate: t.dueDate })),
     });
-    await audit(user, "CREATE", "Task", null, `${toCreate.length}× Fristen-Erinnerung`);
+    await audit(user, "CREATE", "Task", null, `${toCreate.length}× Deadline reminders`);
   }
   revalidatePath("/", "layout");
   return toCreate.length > 0
     ? { ok: true }
-    : { error: "Keine neuen Fristen (bereits als Aufgabe erfasst oder keine anstehend)." };
+    : { error: "No new deadlines (already tracked as tasks or none upcoming)." };
 }

@@ -48,7 +48,7 @@ export function IntegrationInfo({ baseUrl }: { baseUrl: string }) {
 
   // Claude Desktop / MCP-Client Config (Streamable HTTP)
   const mcpConfig = JSON.stringify(
-    { mcpServers: { havewa: { url: mcpUrl, headers: { Authorization: "Bearer DEIN_TOKEN" } } } },
+    { mcpServers: { localea: { url: mcpUrl, headers: { Authorization: "Bearer YOUR_TOKEN" } } } },
     null,
     2,
   );

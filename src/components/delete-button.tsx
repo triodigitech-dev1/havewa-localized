@@ -38,7 +38,7 @@ export function DeleteButton({
         await action(fd);
         setOpen(false);
         toast.success(t("deleted"));
-        router.refresh(); // abhängige Übersichten sofort aktualisieren
+        router.refresh(); // Refresh dependent lists immediately
       } catch {
         toast.error(t("deleteFailed"));
       }

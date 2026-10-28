@@ -10,7 +10,7 @@ export async function createPerson(_p: ActionState, fd: FormData): Promise<Actio
   const user = await requireWriter();
   const entries = Object.fromEntries(fd);
   const r = personSchema.safeParse(entries);
-  if (!r.success) return { error: r.error.issues[0]?.message ?? "Ungültige Eingabe" };
+  if (!r.success) return { error: r.error.issues[0]?.message ?? "Invalid input" };
   await prisma.person.create({ data: { ...r.data, custom: pickCustom(entries), tenantId: user.tenantId } });
   revalidatePath("/", "layout");
   return { ok: true };
@@ -21,7 +21,7 @@ export async function updatePerson(_p: ActionState, fd: FormData): Promise<Actio
   const id = String(fd.get("id") ?? "");
   const entries = Object.fromEntries(fd);
   const r = personSchema.safeParse(entries);
-  if (!r.success) return { error: r.error.issues[0]?.message ?? "Ungültige Eingabe" };
+  if (!r.success) return { error: r.error.issues[0]?.message ?? "Invalid input" };
   await prisma.person.updateMany({ where: { id, tenantId: user.tenantId }, data: { ...r.data, custom: pickCustom(entries) } });
   revalidatePath("/", "layout");
   return { ok: true };

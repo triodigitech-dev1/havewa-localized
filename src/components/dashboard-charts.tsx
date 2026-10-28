@@ -1,7 +1,7 @@
 import { money } from "@/lib/format";
 
-// Kompakte, abhängigkeitsfreie SVG-Charts fürs Dashboard.
-// Farbpaar (Soll/Zahlung) ist CVD-geprüft; Werte zusätzlich als Label/Tooltip.
+// Compact, zero-dependency SVG charts for dashboard financial overview.
+// Color pair (Target Charges / Payments) is CVD accessible; values rendered in tooltips/labels.
 const SOLL = "#2563EB";
 const ZAHLUNG = "#E0781E";
 

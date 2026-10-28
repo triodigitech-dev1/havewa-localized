@@ -1,5 +1,4 @@
-// OpenAPI 3.1 Beschreibung der HaVeWa REST-API. Öffentlich (keine Geheimnisse),
-// dient Scalar/Swagger als Referenz.
+// OpenAPI 3.1 description of the Localea Rental Management REST API. Public reference.
 
 const listOp = (tag: string, summary: string) => ({
   tags: [tag],
@@ -11,68 +10,68 @@ const listOp = (tag: string, summary: string) => ({
 const spec = {
   openapi: "3.1.0",
   info: {
-    title: "HaVeWa API",
+    title: "Localea API",
     version: "1.0.0",
     description:
-      "REST-API der Hausverwaltungssoftware HaVeWa. Authentifizierung per Bearer-Token " +
-      "(persönlicher Zugangstoken aus den Einstellungen). Alle Daten sind auf den Mandanten des Tokens beschränkt.",
+      "REST API for Localea Rental Management. Authentication via Bearer token " +
+      "(personal access token from settings). All data is scoped to the tenant.",
   },
   servers: [{ url: "/" }],
   components: {
     securitySchemes: {
-      bearerAuth: { type: "http", scheme: "bearer", description: "Persönlicher API-Token (Einstellungen → API- & MCP-Zugänge)" },
+      bearerAuth: { type: "http", scheme: "bearer", description: "Personal API token (Settings → API & Integration Tokens)" },
     },
   },
   security: [{ bearerAuth: [] }],
   paths: {
     "/api/v1/me": {
-      get: { tags: ["Allgemein"], summary: "Eigene Info + Portfolio-Kennzahlen", security: [{ bearerAuth: [] }], responses: { "200": { description: "OK" }, "401": { description: "Unauthorized" } } },
+      get: { tags: ["General"], summary: "Current user profile & portfolio metrics", security: [{ bearerAuth: [] }], responses: { "200": { description: "OK" }, "401": { description: "Unauthorized" } } },
     },
-    "/api/v1/properties": { get: listOp("Objekte", "Objekte auflisten") },
+    "/api/v1/properties": { get: listOp("Properties", "List all properties") },
     "/api/v1/properties/{id}": {
       get: {
-        tags: ["Objekte"],
-        summary: "Objekt mit Gebäuden & Einheiten",
+        tags: ["Properties"],
+        summary: "Retrieve property details with buildings and units",
         security: [{ bearerAuth: [] }],
         parameters: [{ name: "id", in: "path", required: true, schema: { type: "string" } }],
         responses: { "200": { description: "OK" }, "404": { description: "Not found" } },
       },
     },
-    "/api/v1/units": { get: listOp("Einheiten", "Einheiten auflisten") },
-    "/api/v1/meters": { get: listOp("Einheiten", "Zähler + letzter Stand auflisten") },
-    "/api/v1/owners": { get: listOp("Einheiten", "Eigentümer-Zuordnungen auflisten") },
-    "/api/v1/leases": { get: listOp("Verträge", "Mietverträge auflisten") },
-    "/api/v1/open-items": { get: listOp("Finanzen", "Offene Posten auflisten") },
-    "/api/v1/accounts": { get: listOp("Finanzen", "Konten + Saldo auflisten") },
-    "/api/v1/charges": { get: listOp("Finanzen", "Sollstellungen auflisten") },
-    "/api/v1/payments": { get: listOp("Finanzen", "Zahlungen auflisten") },
-    "/api/v1/documents": { get: listOp("Dokumente", "Dokumente auflisten") },
-    "/api/v1/meetings": { get: listOp("Versammlung", "Eigentümerversammlungen auflisten") },
-    "/api/v1/resolutions": { get: listOp("Versammlung", "Beschlusssammlung auflisten") },
-    "/api/v1/economic-plans": { get: listOp("WEG", "Wirtschaftspläne auflisten") },
-    "/api/v1/reserves": { get: listOp("WEG", "Erhaltungsrücklagen + Saldo auflisten") },
-    "/api/v1/appointments": { get: listOp("Kalender", "Termine auflisten") },
-    "/api/v1/contractors": { get: listOp("Instandhaltung", "Handwerker/Dienstleister auflisten") },
-    "/api/v1/maintenance-contracts": { get: listOp("Instandhaltung", "Wartungsverträge auflisten") },
-    "/api/v1/insurances": { get: listOp("Weitere", "Versicherungen auflisten") },
-    "/api/v1/property-taxes": { get: listOp("Weitere", "Grundsteuer auflisten") },
+    "/api/v1/units": { get: listOp("Units", "List all units") },
+    "/api/v1/meters": { get: listOp("Units", "List meters with latest readings") },
+    "/api/v1/owners": { get: listOp("Units", "List unit owner associations") },
+    "/api/v1/leases": { get: listOp("Leases", "List rental leases") },
+    "/api/v1/open-items": { get: listOp("Finances", "List open overdue balances") },
+    "/api/v1/accounts": { get: listOp("Finances", "List financial accounts with balances") },
+    "/api/v1/charges": { get: listOp("Finances", "List posted charges") },
+    "/api/v1/payments": { get: listOp("Finances", "List payment transactions") },
+    "/api/v1/documents": { get: listOp("Documents", "List stored documents") },
+    "/api/v1/meetings": { get: listOp("Meetings", "List HOA owner meetings") },
+    "/api/v1/resolutions": { get: listOp("Meetings", "List book of resolutions") },
+    "/api/v1/economic-plans": { get: listOp("HOA", "List annual economic plans") },
+    "/api/v1/reserves": { get: listOp("HOA", "List reserve funds with balances") },
+    "/api/v1/appointments": { get: listOp("Calendar", "List scheduled calendar appointments") },
+    "/api/v1/contractors": { get: listOp("Maintenance", "List maintenance contractors and trades") },
+    "/api/v1/maintenance-contracts": { get: listOp("Maintenance", "List recurring maintenance contracts") },
+    "/api/v1/insurances": { get: listOp("Policies", "List property insurance policies") },
+    "/api/v1/property-taxes": { get: listOp("Policies", "List property tax assessments") },
     "/api/v1/operations": {
       get: {
-        tags: ["Operationen"],
-        summary: "Verfügbare Operationen (kein reines CRUD)",
+        tags: ["Operations"],
+        summary: "Available workflow operations (beyond CRUD)",
         description:
-          "Sollstellungslauf, Mahnlauf, Mietanpassung anwenden, Wartung fortschreiben, Zeiterfassung, " +
-          "Bank-Import (camt.053), E-Mail senden, Dokument-Upload, KI-/SMTP-Konfiguration. " +
-          "Ausführen: POST /api/v1/operations/{name} mit den Parametern im Body.",
+          "Rent roll charge run, dunning run, apply rent adjustment, advance maintenance, time logging, " +
+          "camt.053 bank statement import, outbox email sending, document upload. " +
+          "Execute via POST /api/v1/operations/{name} with parameters in request body.",
         security: [{ bearerAuth: [] }],
         responses: { "200": { description: "OK" }, "401": { description: "Unauthorized" } },
       },
     },
     "/api/v1/operations/{name}": {
       post: {
-        tags: ["Operationen"],
-        summary: "Operation ausführen",
-        description: "name z. B. run_charge_generation, run_dunning, apply_adjustment, send_email, import_camt, upload_document …",
+        tags: ["Operations"],
+        summary: "Execute named workflow operation",
+        description: "name e.g. run_charge_generation, run_dunning, apply_adjustment, send_email, import_camt, upload_document …",
         security: [{ bearerAuth: [] }],
         parameters: [{ name: "name", in: "path", required: true, schema: { type: "string" } }],
         requestBody: { content: { "application/json": { schema: { type: "object", additionalProperties: true } } } },
@@ -81,20 +80,20 @@ const spec = {
     },
     "/api/v1/records": {
       get: {
-        tags: ["Schreiben"],
-        summary: "Schema-Discovery: schreibbare Entitäten + Felder",
+        tags: ["Records"],
+        summary: "Schema discovery: writable entities & field definitions",
         description:
-          "Generische Schreibschicht. Liefert alle Entitäten mit Feldnamen und Relationen. " +
-          "Anlegen: POST /api/v1/records/{entity}. Ändern: PATCH /api/v1/records/{entity}/{id}. Löschen: DELETE …",
+          "Generic persistence API. Returns all entities with field names, types, and relations. " +
+          "Create: POST /api/v1/records/{entity}. Update: PATCH /api/v1/records/{entity}/{id}. Delete: DELETE …",
         security: [{ bearerAuth: [] }],
         responses: { "200": { description: "OK" }, "401": { description: "Unauthorized" } },
       },
     },
     "/api/v1/records/{entity}": {
       post: {
-        tags: ["Schreiben"],
-        summary: "Datensatz anlegen (generisch)",
-        description: "entity z. B. property, unit, person, lease, charge, payment, meeting, resolution, insurance, user …",
+        tags: ["Records"],
+        summary: "Create entity record (generic)",
+        description: "entity e.g. property, unit, person, lease, charge, payment, meeting, resolution, insurance, user …",
         security: [{ bearerAuth: [] }],
         parameters: [{ name: "entity", in: "path", required: true, schema: { type: "string" } }],
         requestBody: { required: true, content: { "application/json": { schema: { type: "object", additionalProperties: true } } } },
@@ -103,19 +102,19 @@ const spec = {
     },
     "/api/v1/records/{entity}/{id}": {
       patch: {
-        tags: ["Schreiben"],
-        summary: "Datensatz ändern (generisch)",
+        tags: ["Records"],
+        summary: "Update entity record (generic)",
         security: [{ bearerAuth: [] }],
         parameters: [
           { name: "entity", in: "path", required: true, schema: { type: "string" } },
           { name: "id", in: "path", required: true, schema: { type: "string" } },
         ],
         requestBody: { required: true, content: { "application/json": { schema: { type: "object", additionalProperties: true } } } },
-        responses: { "200": { description: "OK" }, "404": { description: "Not found" }, "405": { description: "Nicht aktualisierbar" } },
+        responses: { "200": { description: "OK" }, "404": { description: "Not found" }, "405": { description: "Record is immutable" } },
       },
       delete: {
-        tags: ["Schreiben"],
-        summary: "Datensatz löschen (generisch)",
+        tags: ["Records"],
+        summary: "Delete entity record (generic)",
         security: [{ bearerAuth: [] }],
         parameters: [
           { name: "entity", in: "path", required: true, schema: { type: "string" } },
@@ -125,10 +124,10 @@ const spec = {
       },
     },
     "/api/v1/tasks": {
-      get: listOp("Aufgaben", "Aufgaben auflisten"),
+      get: listOp("Tasks", "List all tasks"),
       post: {
-        tags: ["Aufgaben"],
-        summary: "Aufgabe anlegen",
+        tags: ["Tasks"],
+        summary: "Create a task",
         security: [{ bearerAuth: [] }],
         requestBody: {
           required: true,
@@ -146,10 +145,10 @@ const spec = {
       },
     },
     "/api/v1/persons": {
-      get: listOp("Personen", "Personen auflisten"),
+      get: listOp("People", "List contacts and people"),
       post: {
-        tags: ["Personen"],
-        summary: "Person anlegen",
+        tags: ["People"],
+        summary: "Create a contact / person",
         security: [{ bearerAuth: [] }],
         requestBody: {
           required: true,
@@ -173,10 +172,10 @@ const spec = {
       },
     },
     "/api/v1/tickets": {
-      get: listOp("Instandhaltung", "Tickets auflisten"),
+      get: listOp("Maintenance", "List maintenance tickets"),
       post: {
-        tags: ["Instandhaltung"],
-        summary: "Ticket anlegen",
+        tags: ["Maintenance"],
+        summary: "Create a maintenance ticket",
         security: [{ bearerAuth: [] }],
         requestBody: {
           required: true,

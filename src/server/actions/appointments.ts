@@ -9,15 +9,15 @@ import { appointmentSchema, type ActionState } from "@/lib/schemas";
 export async function createAppointment(_p: ActionState, fd: FormData): Promise<ActionState> {
   const user = await requireWriter();
   const r = appointmentSchema.safeParse(Object.fromEntries(fd));
-  if (!r.success) return { error: r.error.issues[0]?.message ?? "Ungültige Eingabe" };
+  if (!r.success) return { error: r.error.issues[0]?.message ?? "Invalid input" };
 
-  // Objekt-Zugehörigkeit prüfen (Mandant).
+  // Verify property belongs to tenant
   if (r.data.propertyId) {
     const prop = await prisma.property.findFirst({
       where: { id: r.data.propertyId, tenantId: user.tenantId },
       select: { id: true },
     });
-    if (!prop) return { error: "Objekt nicht gefunden" };
+    if (!prop) return { error: "Property not found" };
   }
 
   const appt = await prisma.appointment.create({
@@ -32,13 +32,13 @@ export async function updateAppointment(_p: ActionState, fd: FormData): Promise<
   const user = await requireWriter();
   const id = String(fd.get("id") ?? "");
   const r = appointmentSchema.safeParse(Object.fromEntries(fd));
-  if (!r.success) return { error: r.error.issues[0]?.message ?? "Ungültige Eingabe" };
+  if (!r.success) return { error: r.error.issues[0]?.message ?? "Invalid input" };
   if (r.data.propertyId) {
     const prop = await prisma.property.findFirst({
       where: { id: r.data.propertyId, tenantId: user.tenantId },
       select: { id: true },
     });
-    if (!prop) return { error: "Objekt nicht gefunden" };
+    if (!prop) return { error: "Property not found" };
   }
   const res = await prisma.appointment.updateMany({
     where: { id, tenantId: user.tenantId },

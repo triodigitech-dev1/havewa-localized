@@ -35,10 +35,10 @@ export function isAiConfigured(cfg?: AiConfig): boolean {
   return !!resolveKey(cfg);
 }
 
-const SYSTEM = `Du bist der Assistent einer deutschen Hausverwaltungssoftware (HaVeWa).
-Beantworte Fragen zum verwalteten Immobilienbestand knapp, sachlich und auf Deutsch.
-Stütze dich ausschließlich auf die im Kontext gelieferten Daten; erfinde keine Zahlen.
-Wenn die Daten für eine Antwort nicht ausreichen, sage das offen.`;
+const SYSTEM = `You are the intelligent assistant for Localea Rental Management (residential & commercial property management).
+Answer questions regarding the managed properties, units, tenants, leases, finances, and maintenance concisely, professionally, and accurately.
+Rely strictly on the data provided in context; do not fabricate numbers or facts.
+If the data is insufficient to answer, state so transparently.`;
 
 async function anthropicChat(cfg: AiConfig, apiKey: string, user: string, maxTokens: number): Promise<string> {
   const client = new Anthropic({ apiKey });
@@ -68,21 +68,21 @@ async function openaiChat(cfg: AiConfig, apiKey: string, user: string, maxTokens
   return res.choices[0]?.message?.content?.trim() ?? "";
 }
 
-/** Frage an die KI, angereichert mit einem Bestands-Kontext. */
+/** Query AI with portfolio context. */
 export async function askAssistant(context: string, question: string, cfg?: AiConfig): Promise<string> {
   const apiKey = resolveKey(cfg);
-  if (!apiKey) throw new Error("Kein API-Schlüssel konfiguriert");
-  const user = `Bestands-Kontext (JSON):\n${context}\n\nFrage: ${question}`;
+  if (!apiKey) throw new Error("No API key configured");
+  const user = `Portfolio Context (JSON):\n${context}\n\nQuestion: ${question}`;
   return resolveProvider(cfg) === "openai"
     ? openaiChat(cfg!, apiKey, user, 1024)
     : anthropicChat(cfg ?? {}, apiKey, user, 1024);
 }
 
-/** Test-Aufruf für die Einstellungen: kurze Anfrage, wirft bei Fehler. */
+/** Health check ping for settings: small prompt, throws on error. */
 export async function pingAi(cfg: AiConfig): Promise<string> {
   const apiKey = resolveKey(cfg);
-  if (!apiKey) throw new Error("Kein API-Schlüssel konfiguriert");
+  if (!apiKey) throw new Error("No API key configured");
   return resolveProvider(cfg) === "openai"
-    ? openaiChat(cfg, apiKey, "Antworte nur mit: OK", 16)
-    : anthropicChat(cfg, apiKey, "Antworte nur mit: OK", 16);
+    ? openaiChat(cfg, apiKey, "Reply only with: OK", 16)
+    : anthropicChat(cfg, apiKey, "Reply only with: OK", 16);
 }

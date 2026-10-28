@@ -1,4 +1,4 @@
-import { ArrowLeft, Percent } from "lucide-react";
+import { ArrowLeft, Percent, Wrench, Receipt, ArrowUpRight, Users, Phone, Mail } from "lucide-react";
 import { getTranslations, getLocale } from "next-intl/server";
 import { notFound } from "next/navigation";
 import { requireUser } from "@/lib/rbac";
@@ -11,9 +11,11 @@ import { deleteAreaAllocation } from "@/server/actions/area";
 import { Link } from "@/i18n/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { WhatsAppReminderButton } from "@/components/whatsapp-reminder-button";
 import {
   Card,
   CardContent,
+  CardDescription,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
@@ -30,8 +32,10 @@ import {
   BuildingDialog,
   UnitDialog,
 } from "@/components/entity-dialogs";
+import { CostDialog } from "@/components/cost-dialog";
 import { DeleteButton } from "@/components/delete-button";
 import { deleteProperty, deleteBuilding, deleteUnit } from "@/server/actions/objects";
+import { deleteCost } from "@/server/actions/costs";
 
 export default async function PropertyDetailPage({
   params,
@@ -58,7 +62,7 @@ export default async function PropertyDetailPage({
 
   if (!property) notFound();
 
-  // Verwalterhonorar: Basis aus Einheitenzahl + aktiver Sollmiete berechnen
+  // Verwalterhonorar & aktive Mieter: Basis aus Einheitenzahl + aktiver Sollmiete berechnen
   const now = new Date();
   const activeLeases = await prisma.lease.findMany({
     where: {
@@ -67,9 +71,17 @@ export default async function PropertyDetailPage({
       startDate: { lte: now },
       OR: [{ endDate: null }, { endDate: { gte: now } }],
     },
-    include: { components: { select: { amount: true } } },
+    include: {
+      components: { select: { amount: true } },
+      unit: { select: { id: true, label: true, building: { select: { name: true } } } },
+      renters: { include: { person: true } },
+      charges: {
+        include: { payments: { select: { amount: true } } },
+        orderBy: { dueDate: "desc" },
+      },
+    },
   });
-  const [customDefs, unitDefs] = await Promise.all([
+  const [customDefs, unitDefs, costEntries, tickets] = await Promise.all([
     prisma.customFieldDef.findMany({
       where: { tenantId: user.tenantId, entity: "PROPERTY" },
       orderBy: { createdAt: "asc" },
@@ -79,6 +91,19 @@ export default async function PropertyDetailPage({
       where: { tenantId: user.tenantId, entity: "UNIT" },
       orderBy: { createdAt: "asc" },
       select: { key: true, label: true },
+    }),
+    prisma.costEntry.findMany({
+      where: { tenantId: user.tenantId, propertyId: id },
+      orderBy: [{ year: "desc" }, { createdAt: "desc" }],
+    }),
+    prisma.ticket.findMany({
+      where: {
+        tenantId: user.tenantId,
+        OR: [{ propertyId: id }, { unit: { building: { propertyId: id } } }],
+      },
+      include: { unit: true, contractor: true },
+      orderBy: { createdAt: "desc" },
+      take: 6,
     }),
   ]);
   const customValues = (property.custom as Record<string, string>) ?? {};
@@ -93,7 +118,44 @@ export default async function PropertyDetailPage({
     { unitCount, monthlyRentSum },
   );
 
-  // Flächenmodell (Gewerbe): Teilflächen + m²·Tage-Abrechnung des gewählten Jahres.
+  const tenantRows = activeLeases.flatMap((l) => {
+    const warmRent = Number(l.rentCold) + l.components.reduce((s, c) => s + Number(c.amount), 0);
+    let totalBilled = 0;
+    let totalPaid = 0;
+    let nextDueDate: Date | null = null;
+    for (const c of l.charges) {
+      const chargeAmt = Number(c.amount);
+      totalBilled += chargeAmt;
+      const paid = c.payments.reduce((acc, p) => acc + Number(p.amount), 0);
+      totalPaid += paid;
+      if (chargeAmt - paid > 0.001 && (!nextDueDate || c.dueDate < nextDueDate)) {
+        nextDueDate = c.dueDate;
+      }
+    }
+    const balance = totalPaid - totalBilled;
+    const openAmount = Math.max(0, totalBilled - totalPaid);
+
+    return l.renters.map((r) => ({
+      leaseId: l.id,
+      unitId: l.unit.id,
+      unitLabel: l.unit.label,
+      buildingName: l.unit.building.name,
+      personId: r.person.id,
+      name: `${r.person.firstName} ${r.person.lastName}`,
+      phone: r.person.phone,
+      email: r.person.email,
+      warmRent,
+      balance,
+      openAmount,
+      isOverpaid: balance > 0.001,
+      isDue: balance < -0.001,
+      nextDueDate,
+    }));
+  });
+
+  const activeLeaseByUnitId = new Map(activeLeases.map((l) => [l.unit.id, l]));
+
+  // Area model (commercial): sub-areas + area-day billing for the selected year.
   const currentYear = now.getUTCFullYear();
   const parsedYear = Number(areaYearParam);
   const areaYear = parsedYear >= 2000 && parsedYear <= 2100 ? parsedYear : currentYear;
@@ -193,19 +255,140 @@ export default async function PropertyDetailPage({
         </div>
       </div>
 
-      {/* Verwalterhonorar */}
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-            <Percent className="size-4" />
-            {t("fee.title")}
-          </CardTitle>
-          <span className="text-xs text-muted-foreground">{t(`feeType.${property.feeType}`)}</span>
-        </CardHeader>
-        <CardContent>
-          <div className="text-2xl font-bold">
-            {money(mgmtFee, locale)} <span className="text-sm font-normal text-muted-foreground">/ {t("fee.perMonth")}</span>
+      {/* Verwalterhonorar & Active Tenant Reminders Overview */}
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+              <Percent className="size-4 text-emerald-600" />
+              {t("fee.title")}
+            </CardTitle>
+            <span className="text-xs text-muted-foreground">{t(`feeType.${property.feeType}`)}</span>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {money(mgmtFee, locale)} <span className="text-sm font-normal text-muted-foreground">/ {t("fee.perMonth")}</span>
+            </div>
+            <p className="text-xs text-muted-foreground pt-1">
+              {unitCount} {t("properties.units")} · {activeLeases.length} active leases
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+              <Users className="size-4 text-emerald-600" />
+              Active Tenancies & Reminders
+            </CardTitle>
+            <span className="text-xs text-muted-foreground">Direct WhatsApp</span>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-foreground">
+              {tenantRows.length} Tenants
+            </div>
+            <p className="text-xs text-muted-foreground pt-1">
+              Monthly rent roll: {money(monthlyRentSum, locale)}
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Active Tenants & WhatsApp Rent Reminders Table */}
+      <Card className="border-emerald-500/25 shadow-sm">
+        <CardHeader className="flex flex-row items-center justify-between space-y-0">
+          <div>
+            <CardTitle className="text-base flex items-center gap-2">
+              <Users className="size-4 text-emerald-600" />
+              {t("leases.tenant")} & WhatsApp Rent Reminders
+            </CardTitle>
+            <CardDescription>
+              {tenantRows.length} active tenancies · Click to instantly open WhatsApp with pre-filled rent reminder text
+            </CardDescription>
           </div>
+          <Button variant="ghost" size="sm" render={<Link href="/leases" />}>
+            <span>{t("leases.title")}</span>
+            <ArrowUpRight className="size-4 ml-1" />
+          </Button>
+        </CardHeader>
+        <CardContent className="p-0">
+          {tenantRows.length === 0 ? (
+            <p className="p-6 text-sm text-muted-foreground">{t("leases.empty")}</p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>{t("leases.tenant")}</TableHead>
+                  <TableHead>{t("leases.unit")}</TableHead>
+                  <TableHead className="text-right">{t("leases.warmRent")}</TableHead>
+                  <TableHead>{t("leases.status")}</TableHead>
+                  <TableHead className="text-right">Action</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {tenantRows.map((tr) => (
+                  <TableRow key={`${tr.leaseId}-${tr.personId}`}>
+                    <TableCell>
+                      <div className="font-semibold text-sm">
+                        <Link href={`/persons/${tr.personId}`} className="hover:underline">
+                          {tr.name}
+                        </Link>
+                      </div>
+                      <div className="text-xs text-muted-foreground flex items-center gap-2 pt-0.5">
+                        {tr.phone && (
+                          <span className="flex items-center gap-1">
+                            <Phone className="size-3 text-emerald-600" /> {tr.phone}
+                          </span>
+                        )}
+                        {tr.email && (
+                          <span className="flex items-center gap-1">
+                            <Mail className="size-3 text-muted-foreground" /> {tr.email}
+                          </span>
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="font-medium text-sm">{tr.unitLabel}</div>
+                      <div className="text-xs text-muted-foreground">{tr.buildingName}</div>
+                    </TableCell>
+                    <TableCell className="text-right font-semibold tabular-nums">
+                      {money(tr.warmRent, locale)}
+                    </TableCell>
+                    <TableCell>
+                      <Badge
+                        variant={tr.isOverpaid ? "default" : tr.isDue ? "destructive" : "secondary"}
+                        className={
+                          tr.isOverpaid
+                            ? "bg-emerald-600 hover:bg-emerald-700 text-white"
+                            : tr.isDue
+                            ? "bg-amber-600 hover:bg-amber-700 text-white"
+                            : ""
+                        }
+                      >
+                        {tr.isOverpaid
+                          ? `+${money(tr.balance, locale)} · In Credit`
+                          : tr.isDue
+                          ? `${money(tr.balance, locale)} · Due`
+                          : "Settled"}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <WhatsAppReminderButton
+                        tenantName={tr.name}
+                        phoneNumber={tr.phone}
+                        unitLabel={tr.unitLabel}
+                        propertyName={property.name}
+                        rentAmount={tr.warmRent}
+                        dueDate={tr.nextDueDate ? date(tr.nextDueDate, locale) : undefined}
+                        balanceDue={tr.openAmount > 0.001 ? tr.openAmount : undefined}
+                        buttonText="Send Rent Reminder via WhatsApp"
+                      />
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
         </CardContent>
       </Card>
 
@@ -334,6 +517,143 @@ export default async function PropertyDetailPage({
         </Card>
       )}
 
+      {/* Property Utility Bills & Collective Expenses */}
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0">
+          <div>
+            <CardTitle className="text-base flex items-center gap-2">
+              <Receipt className="size-4 text-emerald-600" />
+              {t("properties.utilityAndCosts")}
+            </CardTitle>
+            <CardDescription>{t("properties.utilitySubtitle")}</CardDescription>
+          </div>
+          <CostDialog propertyId={property.id} year={currentYear} />
+        </CardHeader>
+        <CardContent className="p-0">
+          {costEntries.length === 0 ? (
+            <p className="p-6 text-sm text-muted-foreground">{t("statements.noCosts")}</p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>{t("fields.type")}</TableHead>
+                  <TableHead>{t("statements.year")}</TableHead>
+                  <TableHead>{t("statements.method")}</TableHead>
+                  <TableHead>{t("statements.umlagefaehig")}</TableHead>
+                  <TableHead>{t("rentComponent.note")}</TableHead>
+                  <TableHead className="text-right">{t("fields.amount")}</TableHead>
+                  <TableHead className="w-16 text-right">{t("common.actions")}</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {costEntries.map((cost) => (
+                  <TableRow key={cost.id}>
+                    <TableCell className="font-medium">
+                      {t(`costType.${cost.type}`)}
+                    </TableCell>
+                    <TableCell>{cost.year}</TableCell>
+                    <TableCell>
+                      <Badge variant="outline">{t(`allocationMethod.${cost.method}`)}</Badge>
+                    </TableCell>
+                    <TableCell>
+                      {cost.umlagefaehig ? (
+                        <span className="text-xs text-emerald-600 font-medium">{t("common.yes")}</span>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">{t("common.no")}</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-muted-foreground text-xs max-w-xs truncate">
+                      {cost.note || "—"}
+                    </TableCell>
+                    <TableCell className="text-right font-semibold tabular-nums">
+                      {money(Number(cost.amount), locale)}
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex justify-end">
+                        <DeleteButton action={deleteCost} id={cost.id} />
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Property Maintenance & Active Tickets */}
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0">
+          <div>
+            <CardTitle className="text-base flex items-center gap-2">
+              <Wrench className="size-4 text-emerald-600" />
+              {t("properties.recentTickets")}
+            </CardTitle>
+            <CardDescription>{tickets.length} {t("tickets.title")}</CardDescription>
+          </div>
+          <Button variant="ghost" size="sm" render={<Link href="/tickets" />}>
+            <span>{t("common.all")}</span>
+            <ArrowUpRight className="size-4" />
+          </Button>
+        </CardHeader>
+        <CardContent className="p-0">
+          {tickets.length === 0 ? (
+            <p className="p-6 text-sm text-muted-foreground">{t("properties.noRecentTickets")}</p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>{t("fields.label")}</TableHead>
+                  <TableHead>{t("units.title")}</TableHead>
+                  <TableHead>{t("tickets.category")}</TableHead>
+                  <TableHead>{t("tickets.priority")}</TableHead>
+                  <TableHead>{t("tickets.status")}</TableHead>
+                  <TableHead>{t("contractors.title")}</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {tickets.map((tkt) => (
+                  <TableRow key={tkt.id}>
+                    <TableCell className="font-medium">
+                      <Link href="/tickets" className="hover:underline">
+                        {tkt.title}
+                      </Link>
+                    </TableCell>
+                    <TableCell className="text-muted-foreground text-xs">
+                      {tkt.unit ? tkt.unit.label : t("common.all")}
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="outline">{t(`ticketCategory.${tkt.category}`)}</Badge>
+                    </TableCell>
+                    <TableCell>
+                      <Badge
+                        variant={
+                          tkt.priority === "HOCH"
+                            ? "destructive"
+                            : tkt.priority === "MITTEL"
+                            ? "default"
+                            : "secondary"
+                        }
+                      >
+                        {t(`ticketPriority.${tkt.priority}`)}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant={tkt.status === "ERLEDIGT" ? "secondary" : "outline"}>
+                        {t(`ticketStatus.${tkt.status}`)}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-muted-foreground text-xs">
+                      {tkt.contractor ? tkt.contractor.name : "—"}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
+
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold">{t("properties.buildings")}</h2>
         <BuildingDialog propertyId={property.id} />
@@ -360,47 +680,80 @@ export default async function PropertyDetailPage({
                   <TableHeader>
                     <TableRow>
                       <TableHead>{t("fields.label")}</TableHead>
+                      <TableHead>{t("leases.tenant")}</TableHead>
                       <TableHead>{t("fields.type")}</TableHead>
                       <TableHead className="text-right">{t("fields.area")}</TableHead>
                       <TableHead className="text-right">{t("fields.rooms")}</TableHead>
                       <TableHead className="text-right">MEA</TableHead>
-                      <TableHead className="w-24 text-right">{t("common.actions")}</TableHead>
+                      <TableHead className="w-28 text-right">{t("common.actions")}</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {b.units.map((u) => (
-                      <TableRow key={u.id}>
-                        <TableCell className="font-medium">
-                          <Link href={`/units/${u.id}`} className="hover:underline">
-                            {u.label}
-                          </Link>
-                        </TableCell>
-                        <TableCell>{t(`unitType.${u.type}`)}</TableCell>
-                        <TableCell className="text-right">{String(u.area)}</TableCell>
-                        <TableCell className="text-right">
-                          {u.rooms ? String(u.rooms) : t("common.none")}
-                        </TableCell>
-                        <TableCell className="text-right">{u.mea ?? t("common.none")}</TableCell>
-                        <TableCell>
-                          <div className="flex justify-end gap-1">
-                            <UnitDialog
-                              buildingId={b.id}
-                              customDefs={unitDefs}
-                              unit={{
-                                id: u.id,
-                                label: u.label,
-                                type: u.type,
-                                area: String(u.area),
-                                rooms: u.rooms ? String(u.rooms) : undefined,
-                                mea: u.mea != null ? String(u.mea) : undefined,
-                                custom: (u.custom as Record<string, string>) ?? {},
-                              }}
-                            />
-                            <DeleteButton action={deleteUnit} id={u.id} />
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))}
+                    {b.units.map((u) => {
+                      const activeL = activeLeaseByUnitId.get(u.id);
+                      const firstRenter = activeL?.renters[0];
+                      const warmRent = activeL
+                        ? Number(activeL.rentCold) + activeL.components.reduce((s, c) => s + Number(c.amount), 0)
+                        : undefined;
+
+                      return (
+                        <TableRow key={u.id}>
+                          <TableCell className="font-medium">
+                            <Link href={`/units/${u.id}`} className="hover:underline">
+                              {u.label}
+                            </Link>
+                          </TableCell>
+                          <TableCell>
+                            {firstRenter ? (
+                              <div className="flex items-center gap-1.5">
+                                <Link
+                                  href={`/persons/${firstRenter.person.id}`}
+                                  className="text-xs font-semibold hover:underline"
+                                >
+                                  {firstRenter.person.firstName} {firstRenter.person.lastName}
+                                </Link>
+                                <WhatsAppReminderButton
+                                  tenantName={`${firstRenter.person.firstName} ${firstRenter.person.lastName}`}
+                                  phoneNumber={firstRenter.person.phone}
+                                  unitLabel={u.label}
+                                  propertyName={property.name}
+                                  rentAmount={warmRent}
+                                  compact={true}
+                                  buttonSize="icon"
+                                  buttonVariant="ghost"
+                                />
+                              </div>
+                            ) : (
+                              <span className="text-xs text-muted-foreground">{t("leasing.vacancy")}</span>
+                            )}
+                          </TableCell>
+                          <TableCell>{t(`unitType.${u.type}`)}</TableCell>
+                          <TableCell className="text-right">{String(u.area)}</TableCell>
+                          <TableCell className="text-right">
+                            {u.rooms ? String(u.rooms) : t("common.none")}
+                          </TableCell>
+                          <TableCell className="text-right">{u.mea ?? t("common.none")}</TableCell>
+                          <TableCell>
+                            <div className="flex justify-end gap-1">
+                              <UnitDialog
+                                buildingId={b.id}
+                                customDefs={unitDefs}
+                                unit={{
+                                  id: u.id,
+                                  label: u.label,
+                                  type: u.type,
+                                  area: String(u.area),
+                                  rooms: u.rooms ? String(u.rooms) : undefined,
+                                  mea: u.mea != null ? String(u.mea) : undefined,
+                                  custom: (u.custom as Record<string, string>) ?? {},
+                                }}
+                              />
+                              <DeleteButton action={deleteUnit} id={u.id} />
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
                   </TableBody>
                 </Table>
               )}

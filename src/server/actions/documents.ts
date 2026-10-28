@@ -12,8 +12,8 @@ const MAX_SIZE = 20 * 1024 * 1024; // 20 MB
 export async function uploadDocument(_p: ActionState, fd: FormData): Promise<ActionState> {
   const user = await requireWriter();
   const file = fd.get("file");
-  if (!(file instanceof File) || file.size === 0) return { error: "Keine Datei" };
-  if (file.size > MAX_SIZE) return { error: "Datei zu groß (max. 20 MB)" };
+  if (!(file instanceof File) || file.size === 0) return { error: "No file selected" };
+  if (file.size > MAX_SIZE) return { error: "File is too large (maximum 20 MB)" };
 
   const category = String(fd.get("category") ?? "SONSTIGES");
   const name = String(fd.get("name") ?? "").trim() || file.name;
@@ -23,22 +23,22 @@ export async function uploadDocument(_p: ActionState, fd: FormData): Promise<Act
 
   if (propertyId) {
     const prop = await prisma.property.findFirst({ where: { id: propertyId, tenantId: user.tenantId }, select: { id: true } });
-    if (!prop) return { error: "Objekt nicht gefunden" };
+    if (!prop) return { error: "Property not found" };
   }
   if (unitId) {
     const u = await prisma.unit.findFirst({ where: { id: unitId, tenantId: user.tenantId }, select: { id: true } });
-    if (!u) return { error: "Einheit nicht gefunden" };
+    if (!u) return { error: "Unit not found" };
   }
   if (personId) {
     const pn = await prisma.person.findFirst({ where: { id: personId, tenantId: user.tenantId }, select: { id: true } });
-    if (!pn) return { error: "Person nicht gefunden" };
+    if (!pn) return { error: "Person not found" };
   }
 
   const buffer = Buffer.from(await file.arrayBuffer());
   const storageKey = await saveFile(buffer, file.name);
   const eInvoice = isEInvoice(file.type, file.name) || category === "ERECHNUNG";
 
-  // E-Rechnung automatisch auslesen (nur XML-Syntaxen; PDF/A-3-Einbettung = Ceiling).
+  // Automatically parse e-invoice fields if detected
   const parsed = eInvoice ? parseEInvoice(buffer, file.type) : null;
 
   await prisma.document.create({

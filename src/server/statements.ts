@@ -12,7 +12,7 @@ export interface StatementUnit {
   renterNames: string[];
   allocated: number;
   prepayment: number;
-  balance: number; // >0 Guthaben, <0 Nachzahlung
+  balance: number; // >0 credit balance, <0 additional payment due
 }
 
 export interface StatementResult {
@@ -23,9 +23,9 @@ export interface StatementResult {
 }
 
 /**
- * Lädt Einheiten, Verträge, Zählerstände und Kosten eines Objekts/Jahres und
- * berechnet die Betriebskostenabrechnung (BetrKV + HeizkostenV). Geteilte Basis
- * für Abrechnungs-Seite, Druckansicht und die Buchungs-/E-Mail-Aktionen.
+ * Loads units, leases, meter readings, and operating costs for a property/year
+ * and calculates the annual operating cost statement. Shared computation for
+ * statement UI, print layout, and email draft actions.
  */
 export async function computeStatement(
   tenantId: string,
@@ -67,7 +67,7 @@ export async function computeStatement(
       if (m.readings.length < 2) return sum;
       const vals = m.readings.map((r) => Number(r.value));
       const measured = Math.max(...vals) - Math.min(...vals);
-      // HeizkostenV §9b: unterjährige Ableseperiode auf Jahreswert hochrechnen.
+      // Extrapolate intra-year meter reading period to full annual equivalent
       const dates = m.readings.map((r) => r.date).sort((a, b) => a.getTime() - b.getTime());
       return sum + extrapolateConsumption(measured, dates[0], dates[dates.length - 1]);
     }, 0);
@@ -82,7 +82,7 @@ export async function computeStatement(
     };
   });
 
-  // HeizkostenV-Verbrauchsanteil: je Position, sonst Mandanten-Standard, sonst 70 %.
+  // Heating/consumption share: per line item, or tenant default, or standard 70%
   const tenantPct = property?.tenant.heatingConsumptionPct ?? null;
   const costInputs: CostInput[] = costs.map((c) => {
     const heating = c.type === "HEIZUNG" || c.type === "WARMWASSER";

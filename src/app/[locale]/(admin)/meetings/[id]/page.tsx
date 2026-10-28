@@ -90,7 +90,7 @@ export default async function MeetingDetailPage({ params }: { params: Promise<{ 
         </CardContent>
       </Card>
 
-      {/* Beschlüsse */}
+      {/* Resolutions */}
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0">
           <CardTitle className="text-base">{t("meetings.resolutions")}</CardTitle>

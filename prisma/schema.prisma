@@ -1,7 +1,7 @@
-// HaVeWa — Kern-Schema (Phase 1). Spätere Phasen erweitern hier.
+// Localea Rental & Property Management — Core Schema
 generator client {
   provider      = "prisma-client-js"
-  // native = lokale Entwicklung, debian-openssl-3.0.x = Docker-Runtime (node:bookworm-slim)
+  // native = local development, debian-openssl-3.0.x = Docker runtime (node:bookworm-slim)
   binaryTargets = ["native", "debian-openssl-3.0.x"]
 }
 
@@ -97,12 +97,14 @@ enum MeterType {
 
 // Mandant = Verwaltungsfirma. Jede Domänen-Zeile trägt tenantId.
 model Tenant {
-  id         String     @id @default(cuid())
-  name       String
-  createdAt  DateTime   @default(now())
-  users      User[]
-  properties Property[]
-  persons    Person[]
+  id           String     @id @default(cuid())
+  name         String
+  subdomain    String?    @unique // e.g. "kilimani" -> kilimani.rental.triotek.co.ke
+  customDomain String?    @unique // e.g. "rentals.triotek.co.ke"
+  createdAt    DateTime   @default(now())
+  users        User[]
+  properties   Property[]
+  persons      Person[]
 
   // KI-Konfiguration (überschreibt ENV, wenn gesetzt)
   aiProvider String? // "anthropic" | "openai" (OpenAI-kompatibel)

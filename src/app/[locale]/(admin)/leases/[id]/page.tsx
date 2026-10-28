@@ -25,6 +25,7 @@ import {
   RenterDialog,
 } from "@/components/lease-dialogs";
 import { DeleteButton } from "@/components/delete-button";
+import { WhatsAppReminderButton } from "@/components/whatsapp-reminder-button";
 import {
   deleteLease,
   deleteRenter,
@@ -129,16 +130,30 @@ export default async function LeaseDetailPage({ params }: { params: Promise<{ id
             ) : (
               lease.renters.map((r) => (
                 <div key={r.id} className="flex items-center justify-between rounded-md border px-3 py-2">
-                  <span className="text-sm">
-                    {r.person.firstName} {r.person.lastName}
-                    {r.person.email ? ` · ${r.person.email}` : ""}
-                  </span>
-                  <form action={deleteRenter}>
-                    <input type="hidden" name="id" value={r.id} />
-                    <Button type="submit" variant="ghost" size="icon" aria-label={t("common.delete")}>
-                      <X className="size-4" />
-                    </Button>
-                  </form>
+                  <div className="flex flex-col text-sm">
+                    <span className="font-medium">
+                      {r.person.firstName} {r.person.lastName}
+                    </span>
+                    <span className="text-xs text-muted-foreground">
+                      {[r.person.email, r.person.phone].filter(Boolean).join(" · ") || t("common.none")}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <WhatsAppReminderButton
+                      tenantName={`${r.person.firstName} ${r.person.lastName}`}
+                      phoneNumber={r.person.phone}
+                      unitLabel={lease.unit.label}
+                      propertyName={lease.unit.building.property.name}
+                      rentAmount={warm}
+                      compact={true}
+                    />
+                    <form action={deleteRenter}>
+                      <input type="hidden" name="id" value={r.id} />
+                      <Button type="submit" variant="ghost" size="icon" aria-label={t("common.delete")}>
+                        <X className="size-4" />
+                      </Button>
+                    </form>
+                  </div>
                 </div>
               ))
             )}

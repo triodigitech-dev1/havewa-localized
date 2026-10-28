@@ -40,16 +40,16 @@ export async function GET() {
         iban: m.iban,
         debtorName: `${m.person.firstName} ${m.person.lastName}`,
         amount: open,
-        reference: `Einzug ${tenant?.name ?? "HaVeWa"}`,
+        reference: `Collection ${tenant?.name ?? "Localea"}`,
       });
     }
   }
 
   const xml = toPain008(entries, {
-    creditorName: tenant?.name ?? "HaVeWa",
+    creditorName: tenant?.name ?? "Localea",
     creditorIban: "DE00000000000000000000",
     creditorId: "DE00ZZZ00000000000",
-    msgId: `HAVEWA-${Date.now()}`,
+    msgId: `LOCALEA-${Date.now()}`,
     createdAt: new Date().toISOString(),
   });
 

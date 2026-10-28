@@ -25,6 +25,7 @@ import {
   CamtDialog,
 } from "@/components/finance-dialogs";
 import { DeleteButton } from "@/components/delete-button";
+import { WhatsAppReminderButton } from "@/components/whatsapp-reminder-button";
 import { Mail } from "lucide-react";
 import { deleteCharge, deleteAccount, deleteMandate, createDunning, emailDunning, seedDefaultAccounts } from "@/server/actions/finances";
 
@@ -60,15 +61,17 @@ export default async function FinancesPage({
   const rows = charges.map((c) => {
     const paid = c.payments.reduce((a, p) => a + Number(p.amount), 0);
     const open = Number(c.amount) - paid;
-    let status: "OPEN" | "PARTIAL" | "PAID" | "OVERDUE";
-    if (open <= 0.001) status = "PAID";
+    let status: "OPEN" | "PARTIAL" | "PAID" | "OVERDUE" | "OVERPAID";
+    if (open < -0.001) status = "OVERPAID";
+    else if (open <= 0.001) status = "PAID";
     else if (c.dueDate < now) status = "OVERDUE";
     else status = paid > 0 ? "PARTIAL" : "OPEN";
     const dunLevel = c.dunnings.reduce((m, d) => Math.max(m, d.level), 0);
     return { c, paid, open, status, dunLevel };
   });
   const totalOpen = rows.reduce((a, r) => a + Math.max(0, r.open), 0);
-  const STATUSES = ["OPEN", "PARTIAL", "PAID", "OVERDUE"];
+  const totalOverpaid = rows.reduce((a, r) => a + (r.open < -0.001 ? Math.abs(r.open) : 0), 0);
+  const STATUSES = ["OPEN", "PARTIAL", "PAID", "OVERDUE", "OVERPAID"];
   const visibleRows = statusFilter ? rows.filter((r) => r.status === statusFilter) : rows;
 
   const accountOpts = accounts.map((a) => ({ value: a.id, label: a.name }));
@@ -79,7 +82,7 @@ export default async function FinancesPage({
   const personOpts = persons.map((p) => ({ value: p.id, label: `${p.lastName}, ${p.firstName}` }));
 
   const statusVariant = (s: string) =>
-    s === "PAID" ? "secondary" : s === "OVERDUE" ? "destructive" : "outline";
+    s === "PAID" ? "secondary" : s === "OVERPAID" ? "default" : s === "OVERDUE" ? "destructive" : "outline";
 
   return (
     <div className="space-y-6">
@@ -94,7 +97,7 @@ export default async function FinancesPage({
         </div>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid gap-4 md:grid-cols-3">
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
@@ -102,7 +105,19 @@ export default async function FinancesPage({
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold">{money(totalOpen, locale)}</div>
+            <div className="text-3xl font-bold tabular-nums">{money(totalOpen, locale)}</div>
+          </CardContent>
+        </Card>
+        <Card className="border-emerald-500/30 bg-emerald-500/5">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              {t("finances.totalOverpaid")}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-3xl font-bold tabular-nums text-emerald-600 dark:text-emerald-400">
+              +{money(totalOverpaid, locale)}
+            </div>
           </CardContent>
         </Card>
         <Card>
@@ -176,12 +191,31 @@ export default async function FinancesPage({
                     <TableCell>{date(c.dueDate, locale)}</TableCell>
                     <TableCell>
                       <div className="flex items-center gap-1">
-                        <Badge variant={statusVariant(status)}>{t(`finances.status${status}`)}</Badge>
+                        <Badge
+                          variant={statusVariant(status)}
+                          className={status === "OVERPAID" ? "bg-emerald-600 hover:bg-emerald-700 text-white" : ""}
+                        >
+                          {t(`finances.status${status}`)}
+                        </Badge>
                         {dunLevel > 0 && <Badge variant="outline">M{dunLevel}</Badge>}
                       </div>
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center justify-end gap-1">
+                        {open > 0.001 && c.lease?.renters[0] && (
+                          <WhatsAppReminderButton
+                            tenantName={`${c.lease.renters[0].person.firstName} ${c.lease.renters[0].person.lastName}`}
+                            phoneNumber={c.lease.renters[0].person.phone}
+                            unitLabel={c.lease.unit.label}
+                            propertyName={c.lease.unit.building.property.name}
+                            rentAmount={Number(c.amount)}
+                            dueDate={date(c.dueDate, locale)}
+                            balanceDue={open}
+                            compact={true}
+                            buttonSize="icon"
+                            buttonVariant="ghost"
+                          />
+                        )}
                         <PaymentDialog chargeId={c.id} defaultAmount={Math.max(0, open)} accounts={accountOpts} />
                         {status === "OVERDUE" && dunLevel < 3 && (
                           <form action={createDunning}>

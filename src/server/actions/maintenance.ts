@@ -15,13 +15,13 @@ import {
 } from "@/lib/schemas";
 
 function fail(msg?: string): ActionState {
-  return { error: msg ?? "Ungültige Eingabe" };
+  return { error: msg ?? "Invalid input" };
 }
 function done(): ActionState {
   revalidatePath("/", "layout");
   return { ok: true };
 }
-// leere Strings aus optionalen Selects zu null
+// Convert empty strings from optional selects to null
 function nn(v: string | undefined) {
   return v ? v : null;
 }
@@ -88,10 +88,10 @@ export async function updateTicket(_p: ActionState, fd: FormData): Promise<Actio
       reminderDate: r.data.reminderDate,
     },
   });
-  // Melder (Portal-Mieter) über Statuswechsel informieren.
+  // Inform ticket reporter (resident portal user) upon status change
   if (before?.reporterId && before.status !== r.data.status) {
     await notifyUsers(user.tenantId, [before.reporterId], {
-      title: `Schadensmeldung aktualisiert: ${r.data.title}`,
+      title: `Maintenance ticket updated: ${r.data.title}`,
       body: `Status: ${r.data.status}`,
       link: "/portal",
     });
@@ -100,7 +100,7 @@ export async function updateTicket(_p: ActionState, fd: FormData): Promise<Actio
   return done();
 }
 
-// Zeiterfassung: Minuten auf ein Ticket addieren.
+// Time tracking: log additional minutes on a ticket
 export async function addTicketTime(fd: FormData): Promise<void> {
   const user = await requireWriter();
   const r = ticketTimeSchema.safeParse(Object.fromEntries(fd));
@@ -123,7 +123,7 @@ export async function createMaintenance(_p: ActionState, fd: FormData): Promise<
   const r = maintenanceSchema.safeParse(Object.fromEntries(fd));
   if (!r.success) return fail(r.error.issues[0]?.message);
   const prop = await prisma.property.findFirst({ where: { id: r.data.propertyId, tenantId: user.tenantId }, select: { id: true } });
-  if (!prop) return fail("Objekt nicht gefunden");
+  if (!prop) return fail("Property not found");
   await prisma.maintenanceContract.create({
     data: { ...r.data, tenantId: user.tenantId, contractorId: nn(r.data.contractorId) },
   });
@@ -134,7 +134,7 @@ export async function deleteMaintenance(fd: FormData): Promise<void> {
   await prisma.maintenanceContract.deleteMany({ where: { id: String(fd.get("id") ?? ""), tenantId: user.tenantId } });
   revalidatePath("/", "layout");
 }
-// nächsten Fälligkeitstermin um Intervall vorrücken
+// Advance next due date by service interval
 export async function advanceMaintenance(fd: FormData): Promise<void> {
   const user = await requireWriter();
   const id = String(fd.get("id") ?? "");

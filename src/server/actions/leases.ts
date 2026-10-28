@@ -15,7 +15,7 @@ import {
 } from "@/lib/schemas";
 
 function fail(msg?: string): ActionState {
-  return { error: msg ?? "Ungültige Eingabe" };
+  return { error: msg ?? "Invalid input" };
 }
 function done(): ActionState {
   revalidatePath("/", "layout");
@@ -32,7 +32,7 @@ export async function createLease(_p: ActionState, fd: FormData): Promise<Action
     prisma.unit.findFirst({ where: { id: r.data.unitId, tenantId: user.tenantId }, select: { id: true } }),
     prisma.person.findFirst({ where: { id: r.data.personId, tenantId: user.tenantId }, select: { id: true } }),
   ]);
-  if (!unit || !person) return fail("Einheit oder Person nicht gefunden");
+  if (!unit || !person) return fail("Unit or person not found");
   const { unitId, personId, ...data } = r.data;
   await prisma.lease.create({
     data: {
@@ -51,12 +51,12 @@ export async function updateLease(_p: ActionState, fd: FormData): Promise<Action
   const id = String(fd.get("id") ?? "");
   const r = leaseUpdateSchema.safeParse(Object.fromEntries(fd));
   if (!r.success) return fail(r.error.issues[0]?.message);
-  // Einheit muss zum Mandanten gehören (Vertrag kann auf andere Einheit umgezogen werden).
+  // Unit must belong to tenant
   const unit = await prisma.unit.findFirst({
     where: { id: r.data.unitId, tenantId: user.tenantId },
     select: { id: true },
   });
-  if (!unit) return fail("Einheit nicht gefunden");
+  if (!unit) return fail("Unit not found");
   await prisma.lease.updateMany({
     where: { id, tenantId: user.tenantId },
     data: { ...r.data, custom: pickCustom(Object.fromEntries(fd)) },
@@ -70,7 +70,7 @@ export async function deleteLease(fd: FormData): Promise<void> {
   revalidatePath("/", "layout");
 }
 
-// --- Renter (Mitmieter) ---
+// --- Renter (Co-tenant) ---
 async function assertLease(tenantId: string, leaseId: string) {
   return prisma.lease.findFirst({ where: { id: leaseId, tenantId }, select: { id: true } });
 }
@@ -79,7 +79,7 @@ export async function addRenter(_p: ActionState, fd: FormData): Promise<ActionSt
   const user = await requireWriter();
   const r = renterSchema.safeParse(Object.fromEntries(fd));
   if (!r.success) return fail(r.error.issues[0]?.message);
-  if (!(await assertLease(user.tenantId, r.data.leaseId))) return fail("Vertrag nicht gefunden");
+  if (!(await assertLease(user.tenantId, r.data.leaseId))) return fail("Lease not found");
   await prisma.renter.create({ data: { ...r.data, tenantId: user.tenantId } });
   return done();
 }
@@ -95,7 +95,7 @@ export async function createComponent(_p: ActionState, fd: FormData): Promise<Ac
   const user = await requireWriter();
   const r = rentComponentSchema.safeParse(Object.fromEntries(fd));
   if (!r.success) return fail(r.error.issues[0]?.message);
-  if (!(await assertLease(user.tenantId, r.data.leaseId))) return fail("Vertrag nicht gefunden");
+  if (!(await assertLease(user.tenantId, r.data.leaseId))) return fail("Lease not found");
   await prisma.rentComponent.create({ data: { ...r.data, tenantId: user.tenantId } });
   return done();
 }
@@ -111,12 +111,12 @@ export async function createAdjustment(_p: ActionState, fd: FormData): Promise<A
   const user = await requireWriter();
   const r = rentAdjustmentSchema.safeParse(Object.fromEntries(fd));
   if (!r.success) return fail(r.error.issues[0]?.message);
-  if (!(await assertLease(user.tenantId, r.data.leaseId))) return fail("Vertrag nicht gefunden");
+  if (!(await assertLease(user.tenantId, r.data.leaseId))) return fail("Lease not found");
   await prisma.rentAdjustment.create({ data: { ...r.data, tenantId: user.tenantId } });
   return done();
 }
 
-// Anpassung anwenden: setzt Kaltmiete des Vertrags auf newRentCold.
+// Apply adjustment: updates cold rent of the lease to newRentCold
 export async function applyAdjustment(fd: FormData): Promise<void> {
   const user = await requireWriter();
   const id = String(fd.get("id") ?? "");
@@ -144,7 +144,7 @@ export async function upsertDeposit(_p: ActionState, fd: FormData): Promise<Acti
   const user = await requireWriter();
   const r = depositSchema.safeParse(Object.fromEntries(fd));
   if (!r.success) return fail(r.error.issues[0]?.message);
-  if (!(await assertLease(user.tenantId, r.data.leaseId))) return fail("Vertrag nicht gefunden");
+  if (!(await assertLease(user.tenantId, r.data.leaseId))) return fail("Lease not found");
   const { leaseId, accountId, ...rest } = r.data;
   const data = { ...rest, accountId: accountId || null };
   await prisma.deposit.upsert({

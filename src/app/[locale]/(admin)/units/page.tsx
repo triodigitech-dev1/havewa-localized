@@ -62,12 +62,12 @@ export default async function UnitsPage() {
     endDate: Date | null;
     renters: { person: { firstName: string; lastName: string } }[];
   };
-  const activeLease = (leases: LeaseRow[]) =>
-    leases.find((l) => l.startDate <= now && (!l.endDate || l.endDate >= now));
-  const occupied = (leases: LeaseRow[]) => !!activeLease(leases);
-  const tenantNames = (leases: LeaseRow[]) => {
+  const activeLease = (leases?: LeaseRow[]) =>
+    Array.isArray(leases) ? leases.find((l) => new Date(l.startDate) <= now && (!l.endDate || new Date(l.endDate) >= now)) : undefined;
+  const occupied = (leases?: LeaseRow[]) => !!activeLease(leases);
+  const tenantNames = (leases?: LeaseRow[]) => {
     const l = activeLease(leases);
-    return l ? l.renters.map((r) => `${r.person.firstName} ${r.person.lastName}`).join(", ") : "";
+    return l && Array.isArray(l.renters) ? l.renters.map((r) => `${r.person.firstName} ${r.person.lastName}`).join(", ") : "";
   };
 
   return (

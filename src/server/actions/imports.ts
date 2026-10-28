@@ -11,23 +11,23 @@ export type ImportState = ActionState & { created?: number; skipped?: number };
 const PERSON_TYPES = ["MIETER", "EIGENTUEMER", "INTERESSENT", "HANDWERKER", "MAKLER", "BANK", "SONSTIGE"];
 
 /**
- * Personen (Adressbuch) aus CSV importieren. Spalten per Header zugeordnet
- * (firstName, lastName, email, phone, type, note); firstName+lastName Pflicht.
- * Ungültige Zeilen werden übersprungen, nicht abgebrochen.
+ * Import people (address book) from CSV. Columns mapped by header:
+ * (firstName, lastName, email, phone, type, note); firstName+lastName required.
+ * Invalid rows are skipped without aborting the batch.
  */
 export async function importPersons(_prev: ImportState, fd: FormData): Promise<ImportState> {
   const user = await requireWriter();
   const file = fd.get("file");
-  if (!(file instanceof File) || file.size === 0) return { error: "Keine Datei" };
+  if (!(file instanceof File) || file.size === 0) return { error: "No file selected" };
 
   const rows = parseCsv(await file.text());
-  if (rows.length < 2) return { error: "Keine Datenzeilen gefunden" };
+  if (rows.length < 2) return { error: "No data rows found in CSV" };
 
   const header = rows[0].map((h) => h.toLowerCase());
   const col = (name: string) => header.indexOf(name.toLowerCase());
   const fi = col("firstName");
   const li = col("lastName");
-  if (fi < 0 || li < 0) return { error: "Spalten 'firstName' und 'lastName' erforderlich" };
+  if (fi < 0 || li < 0) return { error: "Columns 'firstName' and 'lastName' are required" };
   const ei = col("email");
   const pi = col("phone");
   const ti = col("type");
@@ -58,28 +58,28 @@ export async function importPersons(_prev: ImportState, fd: FormData): Promise<I
 
 const PROPERTY_TYPES = ["WOHNEN", "GEWERBE", "GEMISCHT"];
 const MANAGEMENT_TYPES = ["MIET", "WEG"];
+
 const pick = <T extends string>(v: string | undefined, allowed: T[], fallback: T): T =>
   v && allowed.includes(v.toUpperCase() as T) ? (v.toUpperCase() as T) : fallback;
 
 /**
- * Objekte aus CSV importieren. Spalten: name, street, zip, city (Pflicht),
- * optional type (WOHNEN/GEWERBE/GEMISCHT), management (MIET/WEG). Ungültige
- * Zeilen werden übersprungen.
+ * Import properties from CSV. Columns: name, street, zip, city (required),
+ * optional type (WOHNEN/GEWERBE/GEMISCHT), management (MIET/WEG).
  */
 export async function importProperties(_prev: ImportState, fd: FormData): Promise<ImportState> {
   const user = await requireWriter();
   const file = fd.get("file");
-  if (!(file instanceof File) || file.size === 0) return { error: "Keine Datei" };
+  if (!(file instanceof File) || file.size === 0) return { error: "No file selected" };
 
   const rows = parseCsv(await file.text());
-  if (rows.length < 2) return { error: "Keine Datenzeilen gefunden" };
+  if (rows.length < 2) return { error: "No data rows found in CSV" };
   const header = rows[0].map((h) => h.toLowerCase());
   const col = (name: string) => header.indexOf(name.toLowerCase());
   const ni = col("name");
   const si = col("street");
   const zi = col("zip");
   const ci = col("city");
-  if (ni < 0 || si < 0 || zi < 0 || ci < 0) return { error: "Spalten name, street, zip, city erforderlich" };
+  if (ni < 0 || si < 0 || zi < 0 || ci < 0) return { error: "Columns 'name', 'street', 'zip', and 'city' are required" };
   const tyi = col("type");
   const mi = col("management");
 
@@ -109,35 +109,34 @@ export async function importProperties(_prev: ImportState, fd: FormData): Promis
 const UNIT_TYPES = ["WOHNUNG", "GEWERBE", "STELLPLATZ", "KELLER", "SONSTIGES"];
 
 /**
- * Einheiten aus CSV importieren. Spalten: property, building, label (Pflicht),
- * optional type, area, rooms, mea. Objekt wird per Name aufgelöst (muss
- * existieren), Gebäude per Name im Objekt (wird bei Bedarf angelegt).
+ * Import units from CSV. Columns: property, building, label (required),
+ * optional type, area, rooms, mea.
  */
 export async function importUnits(_prev: ImportState, fd: FormData): Promise<ImportState> {
   const user = await requireWriter();
   const file = fd.get("file");
-  if (!(file instanceof File) || file.size === 0) return { error: "Keine Datei" };
+  if (!(file instanceof File) || file.size === 0) return { error: "No file selected" };
 
   const rows = parseCsv(await file.text());
-  if (rows.length < 2) return { error: "Keine Datenzeilen gefunden" };
+  if (rows.length < 2) return { error: "No data rows found in CSV" };
   const header = rows[0].map((h) => h.toLowerCase());
   const col = (name: string) => header.indexOf(name.toLowerCase());
   const pi = col("property");
   const bi = col("building");
   const li = col("label");
-  if (pi < 0 || li < 0) return { error: "Spalten 'property' und 'label' erforderlich" };
+  if (pi < 0 || li < 0) return { error: "Columns 'property' and 'label' are required" };
   const tyi = col("type");
   const ai = col("area");
   const ri = col("rooms");
   const mi = col("mea");
 
-  // Objekte + vorhandene Gebäude des Mandanten cachen.
+  // Cache existing properties & buildings for current tenant
   const properties = await prisma.property.findMany({
     where: { tenantId: user.tenantId },
     select: { id: true, name: true, buildings: { select: { id: true, name: true } } },
   });
   const propByName = new Map(properties.map((p) => [p.name.toLowerCase(), p]));
-  const buildingCache = new Map<string, string>(); // key propId|bldName → buildingId
+  const buildingCache = new Map<string, string>();
   for (const p of properties) for (const b of p.buildings) buildingCache.set(`${p.id}|${b.name.toLowerCase()}`, b.id);
 
   let created = 0;
@@ -148,7 +147,7 @@ export async function importUnits(_prev: ImportState, fd: FormData): Promise<Imp
       skipped++;
       continue;
     }
-    const bldName = (bi >= 0 ? r[bi] : "") || "Haupthaus";
+    const bldName = (bi >= 0 ? r[bi] : "") || "Main Building";
     const cacheKey = `${prop.id}|${bldName.toLowerCase()}`;
     let buildingId = buildingCache.get(cacheKey);
     if (!buildingId) {

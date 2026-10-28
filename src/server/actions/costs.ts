@@ -8,12 +8,12 @@ import { costEntrySchema, type ActionState } from "@/lib/schemas";
 export async function createCost(_p: ActionState, fd: FormData): Promise<ActionState> {
   const user = await requireWriter();
   const r = costEntrySchema.safeParse(Object.fromEntries(fd));
-  if (!r.success) return { error: r.error.issues[0]?.message ?? "Ungültige Eingabe" };
+  if (!r.success) return { error: r.error.issues[0]?.message ?? "Invalid input" };
   const prop = await prisma.property.findFirst({
     where: { id: r.data.propertyId, tenantId: user.tenantId },
     select: { id: true },
   });
-  if (!prop) return { error: "Objekt nicht gefunden" };
+  if (!prop) return { error: "Property not found" };
   await prisma.costEntry.create({ data: { ...r.data, tenantId: user.tenantId } });
   revalidatePath("/", "layout");
   return { ok: true };

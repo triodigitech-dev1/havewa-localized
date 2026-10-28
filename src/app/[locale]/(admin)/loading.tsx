@@ -1,7 +1,6 @@
 import { Skeleton } from "@/components/ui/skeleton";
 
-// Sofortiges Feedback bei Navigation (Suspense-Grenze) — sonst blockt der Klick
-// bis die Server-Component samt Prisma-Queries fertig ist und fühlt sich träge an.
+// Immediate navigation feedback (Suspense boundary) to ensure instant UI transitions.
 export default function Loading() {
   return (
     <div className="space-y-6">

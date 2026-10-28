@@ -14,20 +14,20 @@ function parse(fd: FormData) {
   return { propertyId: String(fd.get("propertyId") ?? ""), year: Number(fd.get("year")) || new Date().getFullYear() };
 }
 
-/** Bucht die Nachzahlungen (Saldo < 0) je Einheit als Sollstellung. */
+/** Posts additional payments due (balance < 0) per unit as charges. */
 export async function bookStatementCharges(_p: ActionState, fd: FormData): Promise<ActionState> {
   const user = await requireWriter();
   const { propertyId, year } = parse(fd);
-  if (!propertyId) return { error: "Kein Objekt" };
+  if (!propertyId) return { error: "Property is required" };
 
   const st = await computeStatement(user.tenantId, propertyId, year);
-  const desc = `NK-Nachzahlung ${year}`;
+  const desc = `Operating cost reconciliation ${year}`;
   const dueDate = new Date(Date.now() + 30 * 864e5);
   let created = 0;
 
   for (const u of st.units) {
-    if (!u.leaseId || u.balance >= 0) continue; // nur Nachzahlungen
-    // Dedup: nicht doppelt buchen
+    if (!u.leaseId || u.balance >= 0) continue; // Only balances due
+    // Deduplication check: do not double post
     const exists = await prisma.charge.findFirst({
       where: { tenantId: user.tenantId, leaseId: u.leaseId, description: desc },
       select: { id: true },
@@ -48,14 +48,14 @@ export async function bookStatementCharges(_p: ActionState, fd: FormData): Promi
   }
   if (created > 0) await audit(user, "CREATE", "Charge", null, `${created}× ${desc}`);
   revalidatePath("/", "layout");
-  return created > 0 ? { ok: true } : { error: "Keine offenen Nachzahlungen zu buchen." };
+  return created > 0 ? { ok: true } : { error: "No outstanding utility reconciliation balances to post." };
 }
 
-/** Erstellt je Einheit mit Mieter-E-Mail einen Abrechnungs-Entwurf im Postausgang. */
+/** Generates draft emails in outbox with attached PDF statement for each resident. */
 export async function emailStatementToTenants(_p: ActionState, fd: FormData): Promise<ActionState> {
   const user = await requireWriter();
   const { propertyId, year } = parse(fd);
-  if (!propertyId) return { error: "Kein Objekt" };
+  if (!propertyId) return { error: "Property is required" };
 
   const st = await computeStatement(user.tenantId, propertyId, year);
   const propName = st.property?.name ?? "";
@@ -63,26 +63,26 @@ export async function emailStatementToTenants(_p: ActionState, fd: FormData): Pr
 
   for (const u of st.units) {
     if (u.renterEmails.length === 0) continue;
-    const kind = u.balance >= 0 ? "Guthaben" : "Nachzahlung";
+    const kind = u.balance >= 0 ? "Credit balance" : "Additional payment due";
     const body =
-      `Sehr geehrte Mieterin, sehr geehrter Mieter,\n\n` +
-      `anbei die Betriebskostenabrechnung ${year} für ${propName}, ${u.label}.\n\n` +
-      `Umgelegte Kosten: ${money(u.allocated)}\n` +
-      `Vorauszahlungen: ${money(u.prepayment)}\n` +
-      `Ergebnis: ${money(Math.abs(u.balance))} ${kind}\n\n` +
-      `Mit freundlichen Grüßen\n${st.property?.tenantName ?? ""}`;
+      `Dear Resident,\n\n` +
+      `Please find attached the operating cost statement for ${year} (${propName}, Unit ${u.label}).\n\n` +
+      `Allocated expenses: ${money(u.allocated)}\n` +
+      `Prepayments received: ${money(u.prepayment)}\n` +
+      `Result: ${money(Math.abs(u.balance))} (${kind})\n\n` +
+      `Best regards,\n${st.property?.tenantName ?? ""}`;
 
-    // PDF erzeugen, im Storage ablegen und als Dokument (Kategorie ABRECHNUNG) archivieren.
-    const pdf = simplePdf(`Betriebskostenabrechnung ${year}`, [
+    // Generate PDF, persist in storage, and archive as document (ABRECHNUNG category)
+    const pdf = simplePdf(`Operating Cost Statement ${year}`, [
       `${propName} - ${u.label}`,
       "",
-      `Umgelegte Kosten: ${money(u.allocated)}`,
-      `Vorauszahlungen:  ${money(u.prepayment)}`,
-      `Ergebnis: ${money(Math.abs(u.balance))} ${kind}`,
+      `Allocated expenses: ${money(u.allocated)}`,
+      `Prepayments received: ${money(u.prepayment)}`,
+      `Result: ${money(Math.abs(u.balance))} (${kind})`,
       "",
-      "Heiz-/Warmwasserkosten nach HeizkostenV (30% Flaeche / 70% Verbrauch).",
+      "Heating and utility charges allocated according to statutory rules (area share & metered consumption).",
     ]);
-    const name = `Abrechnung ${year} - ${u.label}.pdf`;
+    const name = `Statement ${year} - ${u.label}.pdf`;
     const storageKey = await saveFile(pdf, name);
     const doc = await prisma.document.create({
       data: {
@@ -100,7 +100,7 @@ export async function emailStatementToTenants(_p: ActionState, fd: FormData): Pr
       data: {
         tenantId: user.tenantId,
         toAddress: u.renterEmails.join(", "),
-        subject: `Betriebskostenabrechnung ${year} · ${u.label}`,
+        subject: `Operating Cost Statement ${year} · ${u.label}`,
         body,
         status: "ENTWURF",
         attachments: { create: [{ documentId: doc.id }] },
@@ -108,7 +108,7 @@ export async function emailStatementToTenants(_p: ActionState, fd: FormData): Pr
     });
     created++;
   }
-  if (created > 0) await audit(user, "CREATE", "EmailMessage", null, `${created}× Abrechnung ${year} (PDF)`);
+  if (created > 0) await audit(user, "CREATE", "EmailMessage", null, `${created}× Statement ${year} (PDF)`);
   revalidatePath("/", "layout");
-  return created > 0 ? { ok: true } : { error: "Keine Mieter mit E-Mail-Adresse gefunden." };
+  return created > 0 ? { ok: true } : { error: "No residents with valid email addresses found." };
 }

@@ -268,8 +268,8 @@ export const OPERATIONS: Record<string, Op> = {
     run: async (p, a) => {
       const name = String(need(a, "name"));
       const buffer = Buffer.from(String(need(a, "contentBase64")), "base64");
-      if (buffer.length === 0) throw new ApiWriteError("Leerer Inhalt", 400);
-      if (buffer.length > 20 * 1024 * 1024) throw new ApiWriteError("Datei zu groß (max. 20 MB)", 400);
+      if (buffer.length === 0) throw new ApiWriteError("Empty file content", 400);
+      if (buffer.length > 20 * 1024 * 1024) throw new ApiWriteError("File is too large (maximum 20 MB)", 400);
       const mime = s(a.mime) ?? "application/octet-stream";
       const category = (s(a.category) ?? "SONSTIGES") as string;
       const rels: Array<["propertyId" | "unitId" | "personId", "property" | "unit" | "person"]> = [
